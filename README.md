@@ -82,22 +82,34 @@ docker compose up -d postgres redis
 ### 4. Generate Prisma client
 
 ```bash
-DATABASE_URL='postgresql://postgres:postgres@localhost:5432/pharmahub?schema=public' npm run prisma:generate
+npm run prisma:generate
 ```
 
-### 5. Run the backend API
+### 5. Push the schema to PostgreSQL
+
+```bash
+DATABASE_URL='postgresql://postgres:postgres@localhost:5432/pharmahub?schema=public' npx prisma db push --config prisma.config.ts
+```
+
+### 6. Run the backend API
 
 ```bash
 npm run dev:api
 ```
 
-### 6. Run the web app
+### 7. Run the web app
 
 ```bash
 npm run dev:web
 ```
 
 The web app runs on `http://localhost:3000` and the API health endpoint is available at `http://localhost:4000/health`.
+
+For first-time use, open the web app and:
+
+1. Bootstrap the first pharmacy owner.
+2. Sign in with `pharmacySlug + email + password`.
+3. Use the session panel to confirm the token-backed login is working.
 
 ## Docker Usage
 
