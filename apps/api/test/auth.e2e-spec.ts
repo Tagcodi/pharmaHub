@@ -174,6 +174,51 @@ async function main() {
       ["owner@pharmahub.et", "pharmacist@pharmahub.et"]
     );
 
+    console.log("9. Creating and listing medicines in the catalog");
+    const createMedicineResponse = await requestJson<{
+      name: string;
+      strength: string | null;
+      form: string | null;
+      category: string | null;
+    }>(context.baseUrl, "/medicines", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        name: "Paracetamol",
+        genericName: "Acetaminophen",
+        strength: "500 mg",
+        form: "Tablet",
+        category: "Pain relief",
+        unit: "Tablet",
+        sku: "MED-001",
+      }),
+    });
+
+    assert.equal(createMedicineResponse.status, 201);
+    assert.equal(createMedicineResponse.body.name, "Paracetamol");
+    assert.equal(createMedicineResponse.body.strength, "500 mg");
+    assert.equal(createMedicineResponse.body.form, "Tablet");
+
+    const listMedicinesResponse = await requestJson<
+      Array<{
+        name: string;
+        genericName: string | null;
+        strength: string | null;
+        form: string | null;
+      }>
+    >(context.baseUrl, "/medicines", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(listMedicinesResponse.status, 200);
+    assert.equal(listMedicinesResponse.body.length, 1);
+    assert.equal(listMedicinesResponse.body[0]?.name, "Paracetamol");
+    assert.equal(listMedicinesResponse.body[0]?.genericName, "Acetaminophen");
+
     console.log("Auth foundation e2e checks passed.");
   } finally {
     await context.close();
