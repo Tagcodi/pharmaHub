@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AppShell } from "../components/AppShell";
 import {
   fetchJson,
   formatError,
@@ -173,52 +173,8 @@ export default function UsersPage() {
     .toUpperCase();
 
   return (
-    <div className="min-h-screen bg-surface-low flex flex-col">
-      <header
-        className="sticky top-0 z-20 flex items-center justify-between px-8 h-16"
-        style={{
-          background: "rgba(247,249,251,0.85)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          boxShadow: "0 1px 0 rgba(0,66,83,0.06)",
-        }}
-      >
-        <div className="flex items-center gap-4">
-          <div
-            className="w-8 h-8 rounded-[4px] flex items-center justify-center shrink-0"
-            style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
-          >
-            <span className="text-white text-xs font-black">P</span>
-          </div>
-          <div>
-            <span className="text-on-surface font-bold text-sm">
-              {session.pharmacy.name}
-            </span>
-            <span className="ml-2 text-outline text-xs">
-              /{session.pharmacy.slug}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard"
-            className="text-on-surface-variant text-sm font-semibold hover:text-on-surface transition-colors"
-          >
-            Back to dashboard
-          </Link>
-          <button
-            onClick={signOut}
-            title="Sign out"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold cursor-pointer"
-            style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
-          >
-            {initials}
-          </button>
-        </div>
-      </header>
-
-      <main className="flex-1 px-6 md:px-10 py-10 max-w-7xl mx-auto w-full">
+    <AppShell session={session}>
+      <div className="px-8 py-8 max-w-[1200px] mx-auto w-full">
         <div className="mb-10">
           <p className="text-[0.75rem] font-bold tracking-[0.08em] uppercase text-outline mb-2">
             Staff Management
@@ -277,55 +233,73 @@ export default function UsersPage() {
               </div>
             ) : null}
 
-            <div className="overflow-hidden rounded-lg border border-transparent">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-surface-low text-outline text-[0.7rem] uppercase tracking-[0.08em]">
-                    <th className="px-4 py-3 font-bold">User</th>
-                    <th className="px-4 py-3 font-bold">Role</th>
-                    <th className="px-4 py-3 font-bold">Branch</th>
-                    <th className="px-4 py-3 font-bold">Last login</th>
-                    <th className="px-4 py-3 font-bold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user, index) => (
-                    <tr
-                      key={user.id}
-                      className={index % 2 === 0 ? "bg-surface-lowest" : "bg-surface"}
-                    >
-                      <td className="px-4 py-4 align-top">
-                        <p className="text-on-surface font-semibold">{user.fullName}</p>
-                        <p className="text-on-surface-variant text-sm mt-1">
-                          {user.email}
-                        </p>
-                      </td>
-                      <td className="px-4 py-4 align-top">
-                        <RoleChip role={user.role} />
-                      </td>
-                      <td className="px-4 py-4 align-top text-on-surface-variant text-sm">
-                        {user.branch ? (
-                          <>
-                            <p className="text-on-surface font-medium">
-                              {user.branch.name}
-                            </p>
-                            <p className="mt-1">{user.branch.code}</p>
-                          </>
-                        ) : (
-                          "Unassigned"
-                        )}
-                      </td>
-                      <td className="px-4 py-4 align-top text-on-surface-variant text-sm">
-                        {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "Never"}
-                      </td>
-                      <td className="px-4 py-4 align-top">
-                        <StatusChip isActive={user.isActive} />
-                      </td>
+            {users.length === 0 ? (
+              <div className="py-16 flex flex-col items-center gap-3 rounded-lg bg-surface-low">
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(0,66,83,0.06)" }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <circle cx="10" cy="7" r="3" stroke="#70787d" strokeWidth="1.5" />
+                    <path d="M4 16c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="#70787d" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <p className="text-on-surface font-semibold text-sm">No staff accounts yet</p>
+                <p className="text-on-surface-variant text-xs max-w-[240px] text-center leading-relaxed">
+                  Create pharmacist and cashier accounts using the form. Staff inherit your current branch by default.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-lg">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-surface-low text-outline text-[0.7rem] uppercase tracking-[0.08em]">
+                      <th className="px-4 py-3 font-bold">User</th>
+                      <th className="px-4 py-3 font-bold">Role</th>
+                      <th className="px-4 py-3 font-bold">Branch</th>
+                      <th className="px-4 py-3 font-bold">Last login</th>
+                      <th className="px-4 py-3 font-bold">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {users.map((user, index) => (
+                      <tr
+                        key={user.id}
+                        className={index % 2 === 0 ? "bg-surface-lowest" : "bg-surface"}
+                      >
+                        <td className="px-4 py-4 align-top">
+                          <p className="text-on-surface font-semibold">{user.fullName}</p>
+                          <p className="text-on-surface-variant text-sm mt-1">
+                            {user.email}
+                          </p>
+                        </td>
+                        <td className="px-4 py-4 align-top">
+                          <RoleChip role={user.role} />
+                        </td>
+                        <td className="px-4 py-4 align-top text-on-surface-variant text-sm">
+                          {user.branch ? (
+                            <>
+                              <p className="text-on-surface font-medium">
+                                {user.branch.name}
+                              </p>
+                              <p className="mt-1">{user.branch.code}</p>
+                            </>
+                          ) : (
+                            "Unassigned"
+                          )}
+                        </td>
+                        <td className="px-4 py-4 align-top text-on-surface-variant text-sm">
+                          {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "Never"}
+                        </td>
+                        <td className="px-4 py-4 align-top">
+                          <StatusChip isActive={user.isActive} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           <section
@@ -402,8 +376,8 @@ export default function UsersPage() {
             </form>
           </section>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }
 
