@@ -7,7 +7,7 @@ This repository follows a lightweight Git Flow approach that keeps `main` stable
 - `main`
   Always reflects the latest stable project state.
 
-- `codex/<feature-name>`
+- `feat/<feature-name>`
   Used for feature work, technical spikes, and incremental implementation.
 
 - `hotfix/<issue-name>`
@@ -16,9 +16,9 @@ This repository follows a lightweight Git Flow approach that keeps `main` stable
 ## Branch Naming Examples
 
 ```text
-codex/auth-foundation
-codex/inventory-ledger
-codex/sales-pos
+feat/auth-foundation
+feat/inventory-ledger
+feat/sales-pos
 hotfix/fix-stock-adjustment-bug
 ```
 
@@ -72,12 +72,12 @@ When the GitHub repository is connected, `main` should ideally require:
 
 The early implementation sequence should look like this:
 
-1. `codex/auth-foundation`
-2. `codex/pharmacy-schema`
-3. `codex/inventory-core`
-4. `codex/sales-flow`
-5. `codex/audit-and-alerts`
-6. `codex/dashboard-reporting`
+1. `feat/auth-foundation`
+2. `feat/pharmacy-schema`
+3. `feat/inventory-core`
+4. `feat/sales-flow`
+5. `feat/audit-and-alerts`
+6. `feat/dashboard-reporting`
 
 ## Release Philosophy
 
