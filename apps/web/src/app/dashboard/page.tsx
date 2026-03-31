@@ -275,7 +275,12 @@ export default function DashboardPage() {
               <h3 className="text-sm font-bold text-on-surface mb-4">Quick actions</h3>
               <div className="space-y-2">
                 {[
-                  { label: "Inventory", desc: "Manage stock & batches", soon: true },
+                  {
+                    label: "Inventory",
+                    desc: "Medicine catalog",
+                    soon: session.user.role === "CASHIER",
+                    href: "/medicines",
+                  },
                   { label: "Sales",     desc: "Process transactions",   soon: true },
                   { label: "Reports",   desc: "Analytics & audit logs", soon: true },
                   {
@@ -303,7 +308,7 @@ export default function DashboardPage() {
                     </div>
                     {action.soon && (
                       <span className="text-[0.65rem] font-bold tracking-widest uppercase text-outline px-2 py-1 rounded-full bg-surface-high">
-                        {action.label === "Users" ? "Owner" : "Soon"}
+                        {action.label === "Users" ? "Owner" : action.label === "Inventory" ? "Restricted" : "Soon"}
                       </span>
                     )}
                   </button>
