@@ -74,13 +74,12 @@ export class UsersService {
 
     const existingUser = await this.prisma.user.findFirst({
       where: {
-        pharmacyId: currentUser.pharmacyId,
         email: dto.email.trim().toLowerCase()
       }
     });
 
     if (existingUser) {
-      throw new BadRequestException("A user with that email already exists in this pharmacy.");
+      throw new BadRequestException("A user with that email already exists.");
     }
 
     const saltRounds = Number(this.configService.get("PASSWORD_SALT_ROUNDS") ?? 12);

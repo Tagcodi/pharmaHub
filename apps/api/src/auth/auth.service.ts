@@ -131,14 +131,9 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const pharmacySlug = toSlug(dto.pharmacySlug);
-
-    const user = await this.prisma.user.findFirst({
+    const user = await this.prisma.user.findUnique({
       where: {
-        email: dto.email.trim().toLowerCase(),
-        pharmacy: {
-          slug: pharmacySlug
-        }
+        email: dto.email.trim().toLowerCase()
       },
       include: {
         pharmacy: true,
@@ -147,7 +142,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException("Invalid pharmacy slug, email, or password.");
+      throw new UnauthorizedException("Invalid email or password.");
     }
 
     if (!user.isActive) {
@@ -168,7 +163,7 @@ export class AuthService {
         }
       });
 
-      throw new UnauthorizedException("Invalid pharmacy slug, email, or password.");
+      throw new UnauthorizedException("Invalid email or password.");
     }
 
     await this.prisma.$transaction([

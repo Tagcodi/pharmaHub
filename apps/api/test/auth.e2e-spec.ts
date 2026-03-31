@@ -90,7 +90,6 @@ async function main() {
       {
         method: "POST",
         body: JSON.stringify({
-          pharmacySlug: "pharmahub-addis",
           email: "owner@pharmahub.et",
           password: "WrongPass123"
         })
@@ -100,7 +99,7 @@ async function main() {
     assert.equal(invalidLoginResponse.status, 401);
     assert.equal(
       invalidLoginResponse.body.message,
-      "Invalid pharmacy slug, email, or password."
+      "Invalid email or password."
     );
 
     console.log("7. Logging in and checking the current session");
@@ -111,7 +110,6 @@ async function main() {
     }>(context.baseUrl, "/auth/login", {
       method: "POST",
       body: JSON.stringify({
-        pharmacySlug: "pharmahub-addis",
         email: "owner@pharmahub.et",
         password: "SecurePass123"
       })

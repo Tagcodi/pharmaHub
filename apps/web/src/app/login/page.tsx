@@ -11,7 +11,6 @@ import {
 } from "../lib/api";
 
 const initialForm = {
-  pharmacySlug: "",
   email: "",
   password: "",
 };
@@ -75,30 +74,10 @@ export default function LoginPage() {
           Welcome back
         </h1>
         <p className="mt-1 text-on-surface-variant text-sm leading-relaxed">
-          Sign into your pharmacy workspace.
+          Sign in with your email and password.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-          {/* Pharmacy slug */}
-          <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="slug"
-              className="text-[0.75rem] font-bold text-on-surface tracking-[0.01em]"
-            >
-              Pharmacy slug <span className="text-on-error-container">*</span>
-            </label>
-            <input
-              id="slug"
-              type="text"
-              placeholder="pharmahub-addis"
-              required
-              value={form.pharmacySlug}
-              onChange={field("pharmacySlug")}
-              className="h-11 px-4 rounded-lg bg-surface-low text-on-surface text-sm
-                placeholder:text-outline/60 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow"
-            />
-          </div>
-
           {/* Email */}
           <div className="flex flex-col gap-1.5">
             <label
@@ -163,11 +142,11 @@ export default function LoginPage() {
         </form>
 
         {/* Divider */}
-        <div className="mt-6 flex items-center gap-3">
-          <div className="flex-1 h-px bg-surface-high" />
-          <span className="text-outline text-xs">or</span>
-          <div className="flex-1 h-px bg-surface-high" />
-        </div>
+          <div className="mt-6 flex items-center gap-3">
+            <div className="flex-1 h-px bg-surface-high" />
+            <span className="text-outline text-xs">or</span>
+            <div className="flex-1 h-px bg-surface-high" />
+          </div>
 
         <p className="mt-4 text-center text-on-surface-variant text-sm">
           No pharmacy yet?{" "}

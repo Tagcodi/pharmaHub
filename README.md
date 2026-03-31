@@ -110,7 +110,7 @@ The web app runs on `http://localhost:3000` and the API health endpoint is avail
 For first-time use, open the web app and:
 
 1. Bootstrap the first pharmacy owner.
-2. Sign in with `pharmacySlug + email + password`.
+2. Sign in with `email + password`.
 3. Use the session panel to confirm the token-backed login is working.
 
 ## Docker Usage
@@ -139,7 +139,7 @@ npm run test:api:e2e
 The current branch includes the first complete authentication slice:
 
 - first-time pharmacy bootstrap with a default `MAIN` branch
-- JWT login using `pharmacySlug + email + password`
+- JWT login using `email + password`
 - current-session endpoint at `/auth/me`
 - owner-only staff user creation and listing
 - desktop auth flow for bootstrap, login, and dashboard session checks

@@ -314,7 +314,7 @@ export default function DashboardPage() {
               <ul className="space-y-2">
                 {[
                   "First-time pharmacy bootstrap with default MAIN branch",
-                  "JWT login via pharmacySlug + email + password",
+                  "JWT login via email + password",
                   "Protected session endpoint for current user",
                   "Role-based access: OWNER · PHARMACIST · CASHIER",
                 ].map((item) => (

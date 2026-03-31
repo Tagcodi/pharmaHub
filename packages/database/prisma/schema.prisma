@@ -114,7 +114,7 @@ model User {
   pharmacyId   String
   branchId     String?
   fullName     String
-  email        String
+  email        String    @unique
   passwordHash String
   role         UserRole
   isActive     Boolean   @default(true)
@@ -130,7 +130,6 @@ model User {
   stockMovements      StockMovement[]
   auditLogs           AuditLog[]
 
-  @@unique([pharmacyId, email])
   @@map("users")
 }
 
