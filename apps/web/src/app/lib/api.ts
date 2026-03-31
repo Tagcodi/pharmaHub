@@ -1,7 +1,7 @@
 export const TOKEN_KEY = "pharmahub.accessToken";
 
 export type SetupStatus = {
-  isBootstrapped: boolean;
+  isSetupComplete: boolean;
 };
 
 export type SessionResponse = {

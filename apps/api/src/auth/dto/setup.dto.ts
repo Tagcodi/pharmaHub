@@ -6,7 +6,7 @@ import {
   MinLength
 } from "class-validator";
 
-export class BootstrapDto {
+export class SetupDto {
   @IsString()
   @IsNotEmpty()
   pharmacyName!: string;

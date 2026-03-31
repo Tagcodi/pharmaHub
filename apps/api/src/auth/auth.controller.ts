@@ -3,7 +3,7 @@ import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import { AuthService } from "./auth.service";
-import { BootstrapDto } from "./dto/bootstrap.dto";
+import { SetupDto } from "./dto/setup.dto";
 import { LoginDto } from "./dto/login.dto";
 
 @Controller("auth")
@@ -19,9 +19,9 @@ export class AuthController {
     return this.authService.getSetupStatus();
   }
 
-  @Post("bootstrap")
-  bootstrap(@Body() dto: BootstrapDto) {
-    return this.authService.bootstrap(dto);
+  @Post("setup")
+  setup(@Body() dto: SetupDto) {
+    return this.authService.setup(dto);
   }
 
   @Post("login")

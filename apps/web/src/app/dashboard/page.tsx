@@ -313,7 +313,7 @@ export default function DashboardPage() {
               </h3>
               <ul className="space-y-2">
                 {[
-                  "First-time pharmacy bootstrap with default MAIN branch",
+                  "First-time pharmacy setup with default MAIN branch",
                   "JWT login via email + password",
                   "Protected session endpoint for current user",
                   "Role-based access: OWNER · PHARMACIST · CASHIER",

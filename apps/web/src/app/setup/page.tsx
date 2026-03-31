@@ -20,7 +20,7 @@ const initialForm = {
   ownerPassword: "",
 };
 
-export default function BootstrapPage() {
+export default function SetupPage() {
   const router = useRouter();
   const [form, setForm] = useState(initialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,7 +56,7 @@ export default function BootstrapPage() {
 
     try {
       const result = await fetchJson<SessionResponse & { accessToken: string }>(
-        "/auth/bootstrap",
+        "/auth/setup",
         { method: "POST", body: JSON.stringify(form) }
       );
       window.localStorage.setItem(TOKEN_KEY, result.accessToken);
@@ -128,7 +128,7 @@ export default function BootstrapPage() {
           </div>
 
           <h2 className="text-[1.65rem] font-bold text-on-surface tracking-[-0.025em]">
-            Bootstrap your pharmacy
+            Set up your pharmacy
           </h2>
           <p className="mt-1 text-on-surface-variant text-sm leading-relaxed">
             Create the first owner account and default branch.

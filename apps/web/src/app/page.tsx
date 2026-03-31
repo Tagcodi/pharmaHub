@@ -21,8 +21,8 @@ export default function HomePage() {
     try {
       const status = await fetchJson<SetupStatus>("/auth/setup-status");
 
-      if (!status.isBootstrapped) {
-        router.replace("/bootstrap");
+      if (!status.isSetupComplete) {
+        router.replace("/setup");
         return;
       }
 

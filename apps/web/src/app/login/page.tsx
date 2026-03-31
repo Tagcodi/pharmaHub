@@ -151,10 +151,10 @@ export default function LoginPage() {
         <p className="mt-4 text-center text-on-surface-variant text-sm">
           No pharmacy yet?{" "}
           <Link
-            href="/bootstrap"
+            href="/setup"
             className="text-primary font-semibold hover:underline"
           >
-            Bootstrap one
+            Set one up
           </Link>
         </p>
       </div>

@@ -12,7 +12,7 @@ import type { AuthTokenPayload } from "@pharmahub/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import { toSlug } from "../common/utils/slug.util";
-import type { BootstrapDto } from "./dto/bootstrap.dto";
+import type { SetupDto } from "./dto/setup.dto";
 import type { LoginDto } from "./dto/login.dto";
 
 @Injectable()
@@ -35,15 +35,15 @@ export class AuthService {
     const userCount = await this.prisma.user.count();
 
     return {
-      isBootstrapped: userCount > 0
+      isSetupComplete: userCount > 0
     };
   }
 
-  async bootstrap(dto: BootstrapDto) {
+  async setup(dto: SetupDto) {
     const existingUsers = await this.prisma.user.count();
 
     if (existingUsers > 0) {
-      throw new BadRequestException("The system has already been bootstrapped.");
+      throw new BadRequestException("The system has already been set up.");
     }
 
     const pharmacySlug = toSlug(dto.pharmacySlug ?? dto.pharmacyName);
@@ -99,7 +99,7 @@ export class AuthService {
             pharmacyId: pharmacy.id,
             branchId: branch.id,
             userId: owner.id,
-            action: AuditAction.PHARMACY_BOOTSTRAPPED,
+            action: AuditAction.PHARMACY_SETUP_COMPLETED,
             entityType: "Pharmacy",
             entityId: pharmacy.id,
             metadata: {

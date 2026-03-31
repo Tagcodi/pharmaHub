@@ -5,14 +5,14 @@ async function main() {
   const context = await createTestApp();
 
   try {
-    console.log("1. Verifying setup status before bootstrap");
-    const setupBeforeResponse = await requestJson<{ isBootstrapped: boolean }>(
+    console.log("1. Verifying setup status before initial setup");
+    const setupBeforeResponse = await requestJson<{ isSetupComplete: boolean }>(
       context.baseUrl,
       "/auth/setup-status"
     );
 
     assert.equal(setupBeforeResponse.status, 200);
-    assert.equal(setupBeforeResponse.body.isBootstrapped, false);
+    assert.equal(setupBeforeResponse.body.isSetupComplete, false);
 
     console.log("2. Verifying unauthenticated access is blocked");
     const unauthenticatedUsersResponse = await requestJson<{ message: string }>(
@@ -26,13 +26,13 @@ async function main() {
       "Missing bearer token."
     );
 
-    console.log("3. Bootstrapping the first pharmacy owner");
-    const bootstrapResponse = await requestJson<{
+    console.log("3. Setting up the first pharmacy owner");
+    const setupResponse = await requestJson<{
       accessToken: string;
       pharmacy: { name: string; slug: string };
       branch: { name: string; code: string } | null;
       user: { email: string; role: string };
-    }>(context.baseUrl, "/auth/bootstrap", {
+    }>(context.baseUrl, "/auth/setup", {
       method: "POST",
       body: JSON.stringify({
         pharmacyName: "PharmaHub Addis",
@@ -45,25 +45,25 @@ async function main() {
       })
     });
 
-    assert.equal(bootstrapResponse.status, 201);
-    assert.match(bootstrapResponse.body.accessToken, /\S+/);
-    assert.equal(bootstrapResponse.body.pharmacy.slug, "pharmahub-addis");
-    assert.equal(bootstrapResponse.body.branch?.code, "MAIN");
-    assert.equal(bootstrapResponse.body.user.role, "OWNER");
+    assert.equal(setupResponse.status, 201);
+    assert.match(setupResponse.body.accessToken, /\S+/);
+    assert.equal(setupResponse.body.pharmacy.slug, "pharmahub-addis");
+    assert.equal(setupResponse.body.branch?.code, "MAIN");
+    assert.equal(setupResponse.body.user.role, "OWNER");
 
-    console.log("4. Verifying the system now reports as bootstrapped");
-    const setupAfterResponse = await requestJson<{ isBootstrapped: boolean }>(
+    console.log("4. Verifying the system now reports as set up");
+    const setupAfterResponse = await requestJson<{ isSetupComplete: boolean }>(
       context.baseUrl,
       "/auth/setup-status"
     );
 
     assert.equal(setupAfterResponse.status, 200);
-    assert.equal(setupAfterResponse.body.isBootstrapped, true);
+    assert.equal(setupAfterResponse.body.isSetupComplete, true);
 
-    console.log("5. Blocking a second bootstrap attempt");
-    const duplicateBootstrapResponse = await requestJson<{ message: string }>(
+    console.log("5. Blocking a second setup attempt");
+    const duplicateSetupResponse = await requestJson<{ message: string }>(
       context.baseUrl,
-      "/auth/bootstrap",
+      "/auth/setup",
       {
         method: "POST",
         body: JSON.stringify({
@@ -77,10 +77,10 @@ async function main() {
       }
     );
 
-    assert.equal(duplicateBootstrapResponse.status, 400);
+    assert.equal(duplicateSetupResponse.status, 400);
     assert.equal(
-      duplicateBootstrapResponse.body.message,
-      "The system has already been bootstrapped."
+      duplicateSetupResponse.body.message,
+      "The system has already been set up."
     );
 
     console.log("6. Rejecting invalid login attempts");
