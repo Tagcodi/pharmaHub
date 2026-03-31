@@ -17,11 +17,19 @@ import type { LoginDto } from "./dto/login.dto";
 
 @Injectable()
 export class AuthService {
+  private readonly prisma: PrismaService;
+  private readonly jwtService: JwtService;
+  private readonly configService: ConfigService;
+
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService
-  ) {}
+    prisma: PrismaService,
+    jwtService: JwtService,
+    configService: ConfigService
+  ) {
+    this.prisma = prisma;
+    this.jwtService = jwtService;
+    this.configService = configService;
+  }
 
   async getSetupStatus() {
     const userCount = await this.prisma.user.count();

@@ -8,10 +8,16 @@ import type { CreateUserDto } from "./dto/create-user.dto";
 
 @Injectable()
 export class UsersService {
+  private readonly prisma: PrismaService;
+  private readonly configService: ConfigService;
+
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly configService: ConfigService
-  ) {}
+    prisma: PrismaService,
+    configService: ConfigService
+  ) {
+    this.prisma = prisma;
+    this.configService = configService;
+  }
 
   async listUsers(currentUser: AuthenticatedUser) {
     const users = await this.prisma.user.findMany({

@@ -8,7 +8,11 @@ import { LoginDto } from "./dto/login.dto";
 
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  private readonly authService: AuthService;
+
+  constructor(authService: AuthService) {
+    this.authService = authService;
+  }
 
   @Get("setup-status")
   getSetupStatus() {

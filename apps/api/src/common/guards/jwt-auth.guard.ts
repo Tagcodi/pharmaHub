@@ -11,10 +11,16 @@ import type { AuthenticatedRequest } from "../interfaces/authenticated-request.i
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
+  private readonly jwtService: JwtService;
+  private readonly configService: ConfigService;
+
   constructor(
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService
-  ) {}
+    jwtService: JwtService,
+    configService: ConfigService
+  ) {
+    this.jwtService = jwtService;
+    this.configService = configService;
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();

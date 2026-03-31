@@ -11,7 +11,11 @@ import { UsersService } from "./users.service";
 @Roles("OWNER")
 @Controller("users")
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  private readonly usersService: UsersService;
+
+  constructor(usersService: UsersService) {
+    this.usersService = usersService;
+  }
 
   @Get()
   listUsers(@CurrentUser() user: AuthenticatedUser) {
