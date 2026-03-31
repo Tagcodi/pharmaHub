@@ -8,6 +8,7 @@ coverage
 *.log
 *.tsbuildinfo
 apps/api/dist
+apps/api/dist-test
 packages/shared/dist
 packages/database/generated
 postgres-data

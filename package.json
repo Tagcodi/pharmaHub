@@ -11,7 +11,9 @@
     "dev:web": "npm run dev --workspace @pharmahub/web",
     "prisma:generate": "npm run prisma:generate --workspace @pharmahub/database",
     "prisma:migrate:dev": "npm run prisma:migrate:dev --workspace @pharmahub/database",
+    "prisma:migrate:deploy": "npm run prisma:migrate:deploy --workspace @pharmahub/database",
     "prisma:studio": "npm run prisma:studio --workspace @pharmahub/database",
+    "test:api:e2e": "npm run test:e2e --workspace @pharmahub/api",
     "typecheck": "npm run typecheck --workspace @pharmahub/shared && npm run typecheck --workspace @pharmahub/api && npm run typecheck --workspace @pharmahub/web"
   },
   "engines": {

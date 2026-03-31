@@ -4,10 +4,13 @@
   "scripts": {
     "prebuild": "npm run build --workspace @pharmahub/shared",
     "predev": "npm run build --workspace @pharmahub/shared",
+    "pretest:e2e": "npm run build --workspace @pharmahub/shared",
     "pretypecheck": "npm run build --workspace @pharmahub/shared",
     "build": "tsc -p tsconfig.build.json",
+    "build:test": "tsc -p tsconfig.test.json",
     "dev": "ts-node-dev --respawn --transpile-only --project tsconfig.json src/main.ts",
     "start": "node dist/main.js",
+    "test:e2e": "npm run build:test && node dist-test/test/auth.e2e-spec.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
