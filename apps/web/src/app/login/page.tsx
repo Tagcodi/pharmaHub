@@ -1,11 +1,11 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   fetchJson,
   formatError,
+  type SetupStatus,
   TOKEN_KEY,
   type SessionResponse,
 } from "../lib/api";
@@ -18,8 +18,29 @@ const initialForm = {
 export default function LoginPage() {
   const router = useRouter();
   const [form, setForm] = useState(initialForm);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void checkSetupStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function checkSetupStatus() {
+    try {
+      const status = await fetchJson<SetupStatus>("/auth/setup-status");
+
+      if (!status.isSetupComplete) {
+        router.replace("/setup");
+        return;
+      }
+    } catch {
+      // Let the user stay on the page and see API errors during sign-in attempts.
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  }
 
   function field(key: keyof typeof initialForm) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -43,6 +64,23 @@ export default function LoginPage() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (isCheckingStatus) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className="w-10 h-10 rounded-full border-4 border-surface-high border-t-primary animate-spin-loader"
+            role="status"
+            aria-label="Checking setup status"
+          />
+          <p className="text-on-surface-variant text-sm font-medium tracking-wide">
+            Loading sign-in…
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -141,21 +179,8 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Divider */}
-          <div className="mt-6 flex items-center gap-3">
-            <div className="flex-1 h-px bg-surface-high" />
-            <span className="text-outline text-xs">or</span>
-            <div className="flex-1 h-px bg-surface-high" />
-          </div>
-
-        <p className="mt-4 text-center text-on-surface-variant text-sm">
-          No pharmacy yet?{" "}
-          <Link
-            href="/setup"
-            className="text-primary font-semibold hover:underline"
-          >
-            Set one up
-          </Link>
+        <p className="mt-6 text-center text-on-surface-variant text-sm">
+          Initial setup only needs to be completed once for each deployment.
         </p>
       </div>
 

@@ -1,11 +1,12 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   fetchJson,
   formatError,
+  type SetupStatus,
   TOKEN_KEY,
   type SessionResponse,
 } from "../lib/api";
@@ -23,8 +24,45 @@ const initialForm = {
 export default function SetupPage() {
   const router = useRouter();
   const [form, setForm] = useState(initialForm);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void checkSetupStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function checkSetupStatus() {
+    try {
+      const status = await fetchJson<SetupStatus>("/auth/setup-status");
+
+      if (status.isSetupComplete) {
+        const token = window.localStorage.getItem(TOKEN_KEY);
+
+        if (token) {
+          try {
+            await fetchJson<SessionResponse>("/auth/me", {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+            router.replace("/dashboard");
+            return;
+          } catch {
+            window.localStorage.removeItem(TOKEN_KEY);
+          }
+        }
+
+        router.replace("/login");
+        return;
+      }
+    } catch {
+      // Keep the setup form available if the API is temporarily unreachable.
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  }
 
   function toSlug(name: string): string {
     return name
@@ -66,6 +104,23 @@ export default function SetupPage() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (isCheckingStatus) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className="w-10 h-10 rounded-full border-4 border-surface-high border-t-primary animate-spin-loader"
+            role="status"
+            aria-label="Checking setup status"
+          />
+          <p className="text-on-surface-variant text-sm font-medium tracking-wide">
+            Checking setup status…
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
