@@ -3,6 +3,14 @@ export const APP_NAME = "PharmaHub";
 export const USER_ROLES = ["OWNER", "PHARMACIST", "CASHIER"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
+export interface AuthTokenPayload {
+  sub: string;
+  pharmacyId: string;
+  branchId: string | null;
+  role: UserRole;
+  email: string;
+}
+
 export const MOVEMENT_TYPES = [
   "STOCK_IN",
   "SALE",

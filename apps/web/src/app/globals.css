@@ -32,13 +32,13 @@ a {
   text-decoration: none;
 }
 
-.page-shell {
+.auth-page {
   margin: 0 auto;
   max-width: 1200px;
   padding: 56px 24px 72px;
 }
 
-.hero {
+.auth-hero {
   padding: 40px;
   border: 1px solid rgba(36, 91, 58, 0.12);
   border-radius: 28px;
@@ -62,7 +62,7 @@ a {
   text-transform: uppercase;
 }
 
-.hero h1 {
+.auth-hero h1 {
   margin: 18px 0 12px;
   max-width: 760px;
   font-size: clamp(2.5rem, 5vw, 4.5rem);
@@ -77,89 +77,201 @@ a {
   line-height: 1.7;
 }
 
-.hero-actions {
+.status-strip {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 28px;
 }
 
-.primary-link,
-.secondary-link {
-  padding: 12px 18px;
+.status-pill,
+.primary-button,
+.secondary-button,
+.ghost-button,
+.mode-button {
+  padding: 12px 16px;
   border-radius: 999px;
   font-weight: 700;
+  border: none;
+  font: inherit;
 }
 
-.primary-link {
+.status-pill {
+  border: 1px solid rgba(36, 91, 58, 0.12);
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--primary-strong);
+}
+
+.primary-button {
   background: var(--primary);
   color: #f8fbf8;
+  cursor: pointer;
 }
 
-.secondary-link {
+.secondary-button,
+.mode-button {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.85);
+  color: var(--text);
+  cursor: pointer;
 }
 
-.grid-section {
+.ghost-button {
+  background: transparent;
+  border: 1px dashed rgba(24, 33, 26, 0.24);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.mode-button.is-active {
+  background: var(--primary);
+  color: #f8fbf8;
+  border-color: transparent;
+}
+
+.auth-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 24px;
   margin-top: 28px;
 }
 
-.card,
-.roadmap {
+.panel {
   border: 1px solid var(--line);
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: var(--shadow);
 }
 
-.card {
-  padding: 24px;
+.auth-panel,
+.info-panel {
+  padding: 28px;
 }
 
-.card h2,
-.roadmap h2 {
+.panel-header h2,
+.notes-card h3 {
   margin: 0 0 10px;
   font-size: 1.2rem;
 }
 
-.card p,
-.roadmap p,
-.roadmap li {
+.panel-header p,
+.muted-copy,
+.notes-card li,
+.empty-state p,
+.session-group span {
   color: var(--muted);
   line-height: 1.65;
 }
 
-.roadmap {
-  margin-top: 28px;
-  padding: 28px;
+.mode-switch {
+  display: inline-flex;
+  gap: 10px;
+  margin: 20px 0 24px;
 }
 
-.roadmap-header {
+.auth-form {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.auth-form span {
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.auth-form input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fcfdfb;
+  color: var(--text);
+  font: inherit;
+}
+
+.auth-form input:focus {
+  outline: 2px solid rgba(36, 91, 58, 0.18);
+  outline-offset: 2px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.feedback {
+  margin: 16px 0 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+}
+
+.feedback.success {
+  background: rgba(36, 91, 58, 0.08);
+  color: var(--primary-strong);
+}
+
+.feedback.error {
+  background: rgba(176, 57, 36, 0.08);
+  color: #7e2517;
+}
+
+.session-card,
+.notes-card,
+.empty-state {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(244, 246, 243, 0.92));
+}
+
+.session-card + .notes-card {
+  margin-top: 18px;
+}
+
+.session-group + .session-group {
+  margin-top: 18px;
+}
+
+.session-label {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.session-group strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.session-actions {
   display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
 }
 
-.roadmap ol {
-  margin: 18px 0 0;
-  padding-left: 22px;
+.notes-card ul {
+  margin: 12px 0 0;
+  padding-left: 20px;
 }
 
-.roadmap li + li {
-  margin-top: 12px;
+.empty-state {
+  display: grid;
+  gap: 8px;
 }
 
 @media (max-width: 900px) {
-  .grid-section {
+  .auth-grid,
+  .form-row {
     grid-template-columns: 1fr;
-  }
-
-  .roadmap-header {
-    display: block;
   }
 }

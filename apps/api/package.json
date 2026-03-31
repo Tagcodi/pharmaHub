@@ -2,6 +2,9 @@
   "name": "@pharmahub/api",
   "private": true,
   "scripts": {
+    "prebuild": "npm run build --workspace @pharmahub/shared",
+    "predev": "npm run build --workspace @pharmahub/shared",
+    "pretypecheck": "npm run build --workspace @pharmahub/shared",
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
@@ -9,12 +12,20 @@
   },
   "dependencies": {
     "@nestjs/common": "11.1.17",
+    "@nestjs/config": "4.0.3",
     "@nestjs/core": "11.1.17",
+    "@nestjs/jwt": "11.0.2",
     "@nestjs/platform-express": "11.1.17",
+    "@pharmahub/shared": "*",
+    "@prisma/client": "7.6.0",
+    "bcryptjs": "3.0.3",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.15.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2"
   },
   "devDependencies": {
+    "@types/express": "5.0.6",
     "@types/node": "25.5.0",
     "tsx": "4.21.0",
     "typescript": "6.0.2"

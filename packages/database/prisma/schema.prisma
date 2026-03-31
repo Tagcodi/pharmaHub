@@ -51,6 +51,7 @@ enum ReferenceType {
 }
 
 enum AuditAction {
+  PHARMACY_BOOTSTRAPPED
   USER_CREATED
   USER_UPDATED
   USER_DEACTIVATED
@@ -67,6 +68,7 @@ enum AuditAction {
 model Pharmacy {
   id        String   @id @default(uuid())
   name      String
+  slug      String   @unique
   country   String   @default("Ethiopia")
   currency  String   @default("ETB")
   timezone  String   @default("Africa/Addis_Ababa")
