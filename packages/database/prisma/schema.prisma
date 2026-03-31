@@ -51,6 +51,7 @@ enum ReferenceType {
 }
 
 enum AuditAction {
+  PHARMACY_SETUP_COMPLETED
   USER_CREATED
   USER_UPDATED
   USER_DEACTIVATED
@@ -67,6 +68,7 @@ enum AuditAction {
 model Pharmacy {
   id        String   @id @default(uuid())
   name      String
+  slug      String   @unique
   country   String   @default("Ethiopia")
   currency  String   @default("ETB")
   timezone  String   @default("Africa/Addis_Ababa")
@@ -112,7 +114,7 @@ model User {
   pharmacyId   String
   branchId     String?
   fullName     String
-  email        String
+  email        String    @unique
   passwordHash String
   role         UserRole
   isActive     Boolean   @default(true)
@@ -128,7 +130,6 @@ model User {
   stockMovements      StockMovement[]
   auditLogs           AuditLog[]
 
-  @@unique([pharmacyId, email])
   @@map("users")
 }
 

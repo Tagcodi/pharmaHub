@@ -1,69 +1,64 @@
-const pillars = [
-  {
-    title: "Inventory",
-    body: "Track medicines by batch, expiry, and quantity so stock never disappears silently."
-  },
-  {
-    title: "Sales",
-    body: "Record counter transactions quickly and reduce stock automatically after every sale."
-  },
-  {
-    title: "Loss Control",
-    body: "Require reasons for adjustments and make suspicious stock changes visible to owners."
-  },
-  {
-    title: "Reports",
-    body: "Give pharmacy owners a simple daily view of sales, low stock, expiry risk, and adjustments."
-  }
-];
+"use client";
 
-const roadmap = [
-  "Authentication and role-based access",
-  "Medicine, batch, and stock movement engine",
-  "Sales and inventory adjustments",
-  "Audit logs, alerts, and dashboard summaries"
-];
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  fetchJson,
+  TOKEN_KEY,
+  type SetupStatus,
+  type SessionResponse,
+} from "./lib/api";
 
 export default function HomePage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    void checkAndRedirect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function checkAndRedirect() {
+    try {
+      const status = await fetchJson<SetupStatus>("/auth/setup-status");
+
+      if (!status.isSetupComplete) {
+        router.replace("/setup");
+        return;
+      }
+
+      const token = window.localStorage.getItem(TOKEN_KEY);
+
+      if (!token) {
+        router.replace("/login");
+        return;
+      }
+
+      try {
+        await fetchJson<SessionResponse>("/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        router.replace("/dashboard");
+      } catch {
+        window.localStorage.removeItem(TOKEN_KEY);
+        router.replace("/login");
+      }
+    } catch {
+      router.replace("/login");
+    }
+  }
+
   return (
-    <main className="page-shell">
-      <section className="hero">
-        <div className="eyebrow">PharmaHub Foundation</div>
-        <h1>Open-source pharmacy operations software built for real pharmacy workflows.</h1>
-        <p className="hero-copy">
-          This starter lays down the product scope, initial schema, Docker deployment path, and
-          monorepo structure for the PharmaHub MVP.
+    <div className="min-h-screen bg-surface flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div
+          className="w-10 h-10 rounded-full border-4 border-surface-high border-t-primary animate-spin-loader"
+          role="status"
+          aria-label="Loading"
+        />
+        <p className="text-on-surface-variant text-sm font-medium tracking-wide">
+          Loading PharmaHub…
         </p>
-        <div className="hero-actions">
-          <a className="primary-link" href="http://localhost:4000/health">
-            API Health
-          </a>
-          <a className="secondary-link" href="https://github.com">
-            Publish Open Source
-          </a>
-        </div>
-      </section>
-
-      <section className="grid-section">
-        {pillars.map((pillar) => (
-          <article className="card" key={pillar.title}>
-            <h2>{pillar.title}</h2>
-            <p>{pillar.body}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="roadmap">
-        <div className="roadmap-header">
-          <h2>Suggested Build Sequence</h2>
-          <p>Start with the stock ledger and permissions, then layer the UI on top of working flows.</p>
-        </div>
-        <ol>
-          {roadmap.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ol>
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }

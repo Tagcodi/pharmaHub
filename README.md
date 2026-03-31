@@ -23,6 +23,8 @@ This repository currently contains the first technical foundation for the produc
 - initial Prisma data model for the pharmacy domain
 - monorepo scaffold for web, API, shared code, and database
 - Docker Compose setup for local development and deployment
+- initial Prisma migration history for reproducible database setup
+- auth foundation API and desktop web flow
 
 ## Codebase Overview
 
@@ -82,22 +84,34 @@ docker compose up -d postgres redis
 ### 4. Generate Prisma client
 
 ```bash
-DATABASE_URL='postgresql://postgres:postgres@localhost:5432/pharmahub?schema=public' npm run prisma:generate
+npm run prisma:generate
 ```
 
-### 5. Run the backend API
+### 5. Apply database migrations
+
+```bash
+npm run prisma:migrate:deploy
+```
+
+### 6. Run the backend API
 
 ```bash
 npm run dev:api
 ```
 
-### 6. Run the web app
+### 7. Run the web app
 
 ```bash
 npm run dev:web
 ```
 
 The web app runs on `http://localhost:3000` and the API health endpoint is available at `http://localhost:4000/health`.
+
+For first-time use, open the web app and:
+
+1. Set up the first pharmacy owner.
+2. Sign in with `email + password`.
+3. Use the session panel to confirm the token-backed login is working.
 
 ## Docker Usage
 
@@ -116,6 +130,27 @@ npm run typecheck
 npm run build
 npm run prisma:generate
 npm run prisma:migrate:dev
+npm run prisma:migrate:deploy
+npm run test:api:e2e
+```
+
+## Auth Foundation Status
+
+The current branch includes the first complete authentication slice:
+
+- first-time pharmacy setup with a default `MAIN` branch
+- JWT login using `email + password`
+- current-session endpoint at `/auth/me`
+- owner-only staff user creation and listing
+- desktop auth flow for setup, login, and dashboard session checks
+
+To verify the auth foundation locally:
+
+```bash
+docker compose up -d postgres redis
+npm run prisma:generate
+npm run prisma:migrate:deploy
+npm run test:api:e2e
 ```
 
 ## Recommended Build Order
