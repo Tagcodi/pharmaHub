@@ -11,3 +11,4 @@ apps/api/dist
 packages/shared/dist
 packages/database/generated
 postgres-data
+.claude
