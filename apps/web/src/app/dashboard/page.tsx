@@ -278,11 +278,21 @@ export default function DashboardPage() {
                   { label: "Inventory", desc: "Manage stock & batches", soon: true },
                   { label: "Sales",     desc: "Process transactions",   soon: true },
                   { label: "Reports",   desc: "Analytics & audit logs", soon: true },
-                  { label: "Users",     desc: "Staff management",       soon: true },
+                  {
+                    label: "Users",
+                    desc: "Staff management",
+                    soon: session.user.role !== "OWNER",
+                    href: "/users",
+                  },
                 ].map((action) => (
                   <button
                     key={action.label}
                     disabled={action.soon}
+                    onClick={() => {
+                      if (action.href) {
+                        router.push(action.href);
+                      }
+                    }}
                     className="w-full flex items-center justify-between px-4 py-3 rounded-lg
                       bg-surface-low text-left disabled:opacity-50 cursor-not-allowed
                       hover:bg-surface-high transition-colors group"
@@ -293,7 +303,7 @@ export default function DashboardPage() {
                     </div>
                     {action.soon && (
                       <span className="text-[0.65rem] font-bold tracking-widest uppercase text-outline px-2 py-1 rounded-full bg-surface-high">
-                        Soon
+                        {action.label === "Users" ? "Owner" : "Soon"}
                       </span>
                     )}
                   </button>
