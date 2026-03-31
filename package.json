@@ -1,0 +1,21 @@
+{
+  "name": "pharmahub",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @pharmahub/shared && npm run build --workspace @pharmahub/api && npm run build --workspace @pharmahub/web",
+    "dev:api": "npm run dev --workspace @pharmahub/api",
+    "dev:web": "npm run dev --workspace @pharmahub/web",
+    "prisma:generate": "npm run prisma:generate --workspace @pharmahub/database",
+    "prisma:migrate:dev": "npm run prisma:migrate:dev --workspace @pharmahub/database",
+    "prisma:studio": "npm run prisma:studio --workspace @pharmahub/database",
+    "typecheck": "npm run typecheck --workspace @pharmahub/shared && npm run typecheck --workspace @pharmahub/api && npm run typecheck --workspace @pharmahub/web"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=11.0.0"
+  }
+}

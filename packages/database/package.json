@@ -1,0 +1,15 @@
+{
+  "name": "@pharmahub/database",
+  "private": true,
+  "scripts": {
+    "prisma:generate": "prisma generate --config ../../prisma.config.ts",
+    "prisma:migrate:dev": "prisma migrate dev --config ../../prisma.config.ts",
+    "prisma:studio": "prisma studio --config ../../prisma.config.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "7.6.0"
+  },
+  "devDependencies": {
+    "prisma": "7.6.0"
+  }
+}
