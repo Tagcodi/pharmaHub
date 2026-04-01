@@ -5,6 +5,7 @@ import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import { AdjustStockDto } from "./dto/adjust-stock.dto";
+import { CycleCountDto } from "./dto/cycle-count.dto";
 import { StockInDto } from "./dto/stock-in.dto";
 import { InventoryService } from "./inventory.service";
 
@@ -35,6 +36,18 @@ export class InventoryController {
     return this.inventoryService.getAdjustments(user);
   }
 
+  @Get("count-catalog")
+  @Roles("OWNER", "PHARMACIST")
+  getCountCatalog(@CurrentUser() user: AuthenticatedUser) {
+    return this.inventoryService.getCycleCountCatalog(user);
+  }
+
+  @Get("cycle-counts")
+  @Roles("OWNER", "PHARMACIST")
+  getCycleCounts(@CurrentUser() user: AuthenticatedUser) {
+    return this.inventoryService.getCycleCounts(user);
+  }
+
   @Post("stock-in")
   @Roles("OWNER", "PHARMACIST")
   stockIn(
@@ -51,5 +64,14 @@ export class InventoryController {
     @Body() dto: AdjustStockDto
   ) {
     return this.inventoryService.adjustStock(user, dto);
+  }
+
+  @Post("cycle-counts")
+  @Roles("OWNER", "PHARMACIST")
+  cycleCount(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CycleCountDto
+  ) {
+    return this.inventoryService.cycleCount(user, dto);
   }
 }

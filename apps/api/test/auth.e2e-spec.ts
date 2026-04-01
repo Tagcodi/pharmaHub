@@ -850,7 +850,166 @@ async function main() {
       "Dispensing mistake"
     );
 
-    console.log("Sale voiding and reconciliation e2e checks passed.");
+    console.log("29. Reading the cycle count catalog");
+    const cycleCountCatalogResponse = await requestJson<{
+      metrics: {
+        totalBatches: number;
+        totalUnitsOnHand: number;
+        expiringSoonBatchCount: number;
+        lowStockMedicineCount: number;
+      };
+      batches: Array<{
+        stockBatchId: string;
+        medicineId: string;
+        medicineName: string;
+        batchNumber: string;
+        systemQuantity: number;
+        totalMedicineQuantity: number;
+        isLowStock: boolean;
+        isExpiringSoon: boolean;
+      }>;
+    }>(context.baseUrl, "/inventory/count-catalog", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(cycleCountCatalogResponse.status, 200);
+    assert.equal(cycleCountCatalogResponse.body.metrics.totalBatches, 1);
+    assert.equal(cycleCountCatalogResponse.body.metrics.totalUnitsOnHand, 10);
+    assert.equal(cycleCountCatalogResponse.body.metrics.expiringSoonBatchCount, 1);
+    assert.equal(cycleCountCatalogResponse.body.metrics.lowStockMedicineCount, 1);
+    assert.equal(cycleCountCatalogResponse.body.batches[0]?.medicineName, "Paracetamol");
+    assert.equal(cycleCountCatalogResponse.body.batches[0]?.batchNumber, "B-2026-001");
+    assert.equal(cycleCountCatalogResponse.body.batches[0]?.systemQuantity, 10);
+    assert.equal(cycleCountCatalogResponse.body.batches[0]?.totalMedicineQuantity, 10);
+    assert.equal(cycleCountCatalogResponse.body.batches[0]?.isLowStock, true);
+    assert.equal(cycleCountCatalogResponse.body.batches[0]?.isExpiringSoon, true);
+
+    const cycleCountBatchId = cycleCountCatalogResponse.body.batches[0]?.stockBatchId;
+    assert.ok(cycleCountBatchId);
+
+    console.log("30. Recording a physical stock count with a shortage");
+    const createCycleCountResponse = await requestJson<{
+      medicine: {
+        name: string;
+      };
+      batchNumber: string;
+      previousQuantity: number;
+      countedQuantity: number;
+      quantityDelta: number;
+      varianceType: string;
+      notes: string | null;
+    }>(context.baseUrl, "/inventory/cycle-counts", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        stockBatchId: cycleCountBatchId,
+        countedQuantity: 8,
+        notes: "Manual shelf count after shift handover",
+      }),
+    });
+
+    assert.equal(createCycleCountResponse.status, 201);
+    assert.equal(createCycleCountResponse.body.medicine.name, "Paracetamol");
+    assert.equal(createCycleCountResponse.body.batchNumber, "B-2026-001");
+    assert.equal(createCycleCountResponse.body.previousQuantity, 10);
+    assert.equal(createCycleCountResponse.body.countedQuantity, 8);
+    assert.equal(createCycleCountResponse.body.quantityDelta, -2);
+    assert.equal(createCycleCountResponse.body.varianceType, "SHORTAGE");
+    assert.equal(
+      createCycleCountResponse.body.notes,
+      "Manual shelf count after shift handover"
+    );
+
+    console.log("31. Verifying inventory reflects the cycle count");
+    const inventoryAfterCycleCountResponse = await requestJson<{
+      totals: {
+        totalUnitsOnHand: number;
+        totalStockValue: number;
+      };
+      medicines: Array<{
+        totalQuantityOnHand: number;
+      }>;
+    }>(context.baseUrl, "/inventory/summary", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(inventoryAfterCycleCountResponse.status, 200);
+    assert.equal(inventoryAfterCycleCountResponse.body.totals.totalUnitsOnHand, 8);
+    assert.equal(inventoryAfterCycleCountResponse.body.totals.totalStockValue, 120);
+    assert.equal(
+      inventoryAfterCycleCountResponse.body.medicines[0]?.totalQuantityOnHand,
+      8
+    );
+
+    console.log("32. Reading cycle count history and metrics");
+    const cycleCountsResponse = await requestJson<{
+      metrics: {
+        countEvents: number;
+        matchedCount: number;
+        varianceCount: number;
+        shortageEvents: number;
+        overageEvents: number;
+        netVarianceUnits: number;
+      };
+      counts: Array<{
+        medicineName: string;
+        batchNumber: string;
+        previousQuantity: number;
+        countedQuantity: number;
+        quantityDelta: number;
+        varianceType: string;
+        notes: string | null;
+      }>;
+    }>(context.baseUrl, "/inventory/cycle-counts", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(cycleCountsResponse.status, 200);
+    assert.equal(cycleCountsResponse.body.metrics.countEvents, 1);
+    assert.equal(cycleCountsResponse.body.metrics.matchedCount, 0);
+    assert.equal(cycleCountsResponse.body.metrics.varianceCount, 1);
+    assert.equal(cycleCountsResponse.body.metrics.shortageEvents, 1);
+    assert.equal(cycleCountsResponse.body.metrics.overageEvents, 0);
+    assert.equal(cycleCountsResponse.body.metrics.netVarianceUnits, -2);
+    assert.equal(cycleCountsResponse.body.counts[0]?.medicineName, "Paracetamol");
+    assert.equal(cycleCountsResponse.body.counts[0]?.batchNumber, "B-2026-001");
+    assert.equal(cycleCountsResponse.body.counts[0]?.previousQuantity, 10);
+    assert.equal(cycleCountsResponse.body.counts[0]?.countedQuantity, 8);
+    assert.equal(cycleCountsResponse.body.counts[0]?.quantityDelta, -2);
+    assert.equal(cycleCountsResponse.body.counts[0]?.varianceType, "SHORTAGE");
+    assert.equal(
+      cycleCountsResponse.body.counts[0]?.notes,
+      "Manual shelf count after shift handover"
+    );
+
+    console.log("33. Verifying the audit feed records the completed cycle count");
+    const auditLogsAfterCycleCountResponse = await requestJson<{
+      items: Array<{
+        title: string;
+        category: string;
+      }>;
+    }>(context.baseUrl, "/audit/logs", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(auditLogsAfterCycleCountResponse.status, 200);
+    assert.equal(auditLogsAfterCycleCountResponse.body.items[0]?.category, "Inventory");
+    assert.equal(
+      auditLogsAfterCycleCountResponse.body.items[0]?.title,
+      "Cycle count completed"
+    );
+
+    console.log("Cycle count e2e checks passed.");
   } finally {
     await context.close();
   }
