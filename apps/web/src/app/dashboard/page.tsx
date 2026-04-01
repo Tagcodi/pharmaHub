@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../components/AppShell";
+import { AppLoading } from "../components/ui/AppLoading";
+import { EmptyStateCard } from "../components/ui/EmptyStateCard";
+import { KpiCard } from "../components/ui/KpiCard";
+import { StatusBadge } from "../components/ui/StatusBadge";
+import { SurfaceCard } from "../components/ui/SurfaceCard";
 import {
   fetchJson,
   formatError,
@@ -64,7 +69,7 @@ export default function DashboardPage() {
   }
 
   if (isLoading) {
-    return <LoadingScreen />;
+    return <AppLoading message="Loading dashboard…" />;
   }
 
   if (!session) {
@@ -88,11 +93,11 @@ export default function DashboardPage() {
     <AppShell session={session}>
       <div className="mx-auto w-full max-w-[1240px] px-8 py-8">
         <div className="mb-7 grid gap-5 lg:grid-cols-3">
-          <TopStatCard
+          <KpiCard
             label="Inventory Value"
-            main={`ETB ${formatNumber(metrics.totalInventoryValue)}`}
-            mainSize="2.2rem"
-            sub={
+            value={`ETB ${formatNumber(metrics.totalInventoryValue)}`}
+            valueSize="2.2rem"
+            note={
               <span className="flex items-center gap-1 text-xs font-semibold text-on-secondary-container">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                   <path
@@ -123,19 +128,21 @@ export default function DashboardPage() {
             }
           />
 
-          <TopStatCard
+          <KpiCard
             label="Critical Alerts"
-            main={String(metrics.criticalAlertCount)}
-            mainColor="#93000a"
-            mainSize="2.7rem"
-            sub={
+            value={String(metrics.criticalAlertCount)}
+            valueColor="#93000a"
+            valueSize="2.7rem"
+            note={
               <div className="flex flex-wrap gap-2">
-                <span className="inline-flex items-center rounded-full bg-error-container px-2 py-0.5 text-[0.65rem] font-bold text-on-error-container">
-                  {metrics.lowStockCount} Low Stock
-                </span>
-                <span className="inline-flex items-center rounded-full bg-tertiary-fixed px-2 py-0.5 text-[0.65rem] font-bold text-on-tertiary-fixed-variant">
-                  {metrics.nearExpiryBatchCount} Near Expiry
-                </span>
+                <StatusBadge
+                  label={`${metrics.lowStockCount} Low Stock`}
+                  tone="danger"
+                />
+                <StatusBadge
+                  label={`${metrics.nearExpiryBatchCount} Near Expiry`}
+                  tone="warning"
+                />
               </div>
             }
             icon={
@@ -157,11 +164,11 @@ export default function DashboardPage() {
             }
           />
 
-          <TopStatCard
+          <KpiCard
             label="Catalog Coverage"
-            main={`${metrics.registeredMedicines}`}
-            mainSize="2.7rem"
-            sub={
+            value={`${metrics.registeredMedicines}`}
+            valueSize="2.7rem"
+            note={
               <span className="text-xs text-outline">
                 {metrics.activeBatches} active batches in{" "}
                 {overview?.branch.name ?? session.branch?.name ?? "this branch"}
@@ -187,14 +194,11 @@ export default function DashboardPage() {
           <div className="mb-6 rounded-lg bg-error-container px-4 py-3 text-sm text-on-error-container">
             {error}
           </div>
-        ) : null}
+          ) : null}
 
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <div className="space-y-6">
-            <div
-              className="rounded-lg bg-surface-lowest p-7"
-              style={{ boxShadow: "0 4px 16px rgba(0,66,83,0.06)" }}
-            >
+            <SurfaceCard className="p-7">
               <div className="mb-6 flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-[1.1rem] font-bold text-on-surface">
@@ -210,9 +214,10 @@ export default function DashboardPage() {
               </div>
 
               {chartData.length === 0 ? (
-                <EmptyPanel
+                <EmptyStateCard
+                  compact
                   title="No stock movement yet"
-                  desc="Receive your first stock batch to start building this activity trend."
+                  description="Receive your first stock batch to start building this activity trend."
                 />
               ) : (
                 <div className="flex h-[180px] items-end gap-3">
@@ -252,12 +257,9 @@ export default function DashboardPage() {
                   })}
                 </div>
               )}
-            </div>
+            </SurfaceCard>
 
-            <div
-              className="rounded-lg bg-surface-lowest p-7"
-              style={{ boxShadow: "0 4px 16px rgba(0,66,83,0.06)" }}
-            >
+            <SurfaceCard className="p-7">
               <div className="mb-5">
                 <h2 className="text-[1.1rem] font-bold text-on-surface">
                   High Risk Expiry
@@ -306,19 +308,17 @@ export default function DashboardPage() {
                   </tbody>
                 </table>
               ) : (
-                <EmptyPanel
+                <EmptyStateCard
+                  compact
                   title="No active batches yet"
-                  desc="Expiry monitoring will appear here once stock is received."
+                  description="Expiry monitoring will appear here once stock is received."
                 />
               )}
-            </div>
+            </SurfaceCard>
           </div>
 
           <div className="space-y-6">
-            <div
-              className="rounded-lg bg-surface-lowest p-6"
-              style={{ boxShadow: "0 4px 16px rgba(0,66,83,0.06)" }}
-            >
+            <SurfaceCard className="p-6">
               <h2 className="text-[1rem] font-bold text-on-surface">
                 Branch Health
               </h2>
@@ -344,12 +344,9 @@ export default function DashboardPage() {
                   value={metrics.totalUnitsOnHand.toLocaleString("en-US")}
                 />
               </div>
-            </div>
+            </SurfaceCard>
 
-            <div
-              className="rounded-lg bg-surface-lowest p-6"
-              style={{ boxShadow: "0 4px 16px rgba(0,66,83,0.06)" }}
-            >
+            <SurfaceCard className="p-6">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-[1rem] font-bold text-on-surface">
@@ -368,12 +365,13 @@ export default function DashboardPage() {
                   ))}
                 </div>
               ) : (
-                <EmptyPanel
+                <EmptyStateCard
+                  compact
                   title="No recent activity"
-                  desc="As staff sign in and receive stock, the audit trail will appear here."
+                  description="As staff sign in and receive stock, the audit trail will appear here."
                 />
               )}
-            </div>
+            </SurfaceCard>
 
             <div
               className="rounded-lg p-6 text-white"
@@ -401,73 +399,16 @@ export default function DashboardPage() {
   );
 }
 
-function LoadingScreen() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-surface">
-      <div className="flex flex-col items-center gap-4">
-        <div className="h-10 w-10 animate-spin-loader rounded-full border-4 border-surface-high border-t-primary" />
-        <p className="text-sm font-medium text-on-surface-variant">
-          Loading dashboard…
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function TopStatCard({
-  label,
-  main,
-  sub,
-  icon,
-  mainColor,
-  mainSize,
-}: {
-  label: string;
-  main: string;
-  sub: React.ReactNode;
-  icon: React.ReactNode;
-  mainColor?: string;
-  mainSize?: string;
-}) {
-  return (
-    <div
-      className="rounded-lg bg-surface-lowest p-6"
-      style={{ boxShadow: "0 4px 16px rgba(0,66,83,0.06)" }}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-[0.65rem] font-bold uppercase tracking-[0.08em] text-outline">
-            {label}
-          </p>
-          <p
-            className="mt-3 font-bold leading-none tracking-[-0.04em]"
-            style={{
-              color: mainColor ?? "#191c1e",
-              fontSize: mainSize ?? "2.4rem",
-            }}
-          >
-            {main}
-          </p>
-          <div className="mt-3">{sub}</div>
-        </div>
-        {icon}
-      </div>
-    </div>
-  );
-}
-
 function ExpiryChip({ status }: { status: "CRITICAL" | "WARNING" | "NORMAL" }) {
-  const styles = {
-    CRITICAL: "bg-error-container text-on-error-container",
-    WARNING: "bg-tertiary-fixed text-on-tertiary-fixed-variant",
-    NORMAL: "bg-secondary-container text-on-secondary-container",
-  };
+  if (status === "CRITICAL") {
+    return <StatusBadge label="Critical" tone="danger" />;
+  }
 
-  return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-[0.65rem] font-bold tracking-wide ${styles[status]}`}>
-      {status === "CRITICAL" ? "Critical" : status === "WARNING" ? "Warning" : "Monitor"}
-    </span>
-  );
+  if (status === "WARNING") {
+    return <StatusBadge label="Warning" tone="warning" />;
+  }
+
+  return <StatusBadge label="Monitor" tone="success" />;
 }
 
 function HealthRow({ label, value }: { label: string; value: string }) {
@@ -532,17 +473,6 @@ function QuickActionLink({ href, label }: { href: string; label: string }) {
         />
       </svg>
     </Link>
-  );
-}
-
-function EmptyPanel({ title, desc }: { title: string; desc: string }) {
-  return (
-    <div className="rounded-lg bg-surface-low px-5 py-6">
-      <p className="text-sm font-semibold text-on-surface">{title}</p>
-      <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
-        {desc}
-      </p>
-    </div>
   );
 }
 

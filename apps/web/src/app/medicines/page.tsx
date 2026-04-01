@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../components/AppShell";
+import { AppLoading } from "../components/ui/AppLoading";
+import { EmptyStateCard } from "../components/ui/EmptyStateCard";
+import { KpiCard } from "../components/ui/KpiCard";
+import { StatusBadge } from "../components/ui/StatusBadge";
+import { SurfaceCard } from "../components/ui/SurfaceCard";
 import {
   fetchJson,
   formatError,
@@ -76,7 +81,7 @@ export default function MedicinesPage() {
   }
 
   if (isLoading) {
-    return <LoadingScreen />;
+    return <AppLoading message="Loading inventory…" />;
   }
 
   if (!session) {
@@ -169,34 +174,31 @@ export default function MedicinesPage() {
         </div>
 
         <div className="mb-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <IntelCard
+          <KpiCard
             label="Total Stock Value"
             value={`ETB ${formatNumber(totals.totalStockValue)}`}
             note={`${totals.totalUnitsOnHand.toLocaleString("en-US")} units on hand`}
           />
-          <IntelCard
+          <KpiCard
             label="Medicines At Risk"
             value={String(totals.atRiskCount)}
             valueColor="#93000a"
             note={`${totals.lowStockCount} low stock / ${totals.nearExpiryBatchCount} expiring batches`}
           />
-          <IntelCard
+          <KpiCard
             label="Near Expiry (30d)"
             value={String(totals.nearExpiryBatchCount)}
             valueColor="#6e3900"
             note="Batches requiring close review"
           />
-          <IntelCard
+          <KpiCard
             label="Active Batches"
             value={String(totals.activeBatchCount)}
             note={`${totals.registeredMedicineCount} catalog medicines`}
           />
         </div>
 
-        <div
-          className="rounded-lg bg-surface-lowest"
-          style={{ boxShadow: "0 4px 16px rgba(0,66,83,0.06)" }}
-        >
+        <SurfaceCard className="overflow-hidden">
           <div
             className="flex flex-wrap items-center gap-3 px-6 py-4"
             style={{ borderBottom: "1px solid rgba(0,66,83,0.06)" }}
@@ -298,7 +300,7 @@ export default function MedicinesPage() {
           ) : null}
 
           {!error && medicines.length === 0 ? (
-            <EmptyState
+            <EmptyStateCard
               icon={
                 <svg
                   width="24"
@@ -312,12 +314,12 @@ export default function MedicinesPage() {
                 </svg>
               }
               title="No medicines in inventory yet"
-              desc="Receive your first stock batch to create a live inventory record with expiry and quantity tracking."
+              description="Receive your first stock batch to create a live inventory record with expiry and quantity tracking."
             />
           ) : null}
 
           {!error && medicines.length > 0 && filteredMedicines.length === 0 ? (
-            <EmptyState
+            <EmptyStateCard
               icon={
                 <svg
                   width="24"
@@ -332,7 +334,7 @@ export default function MedicinesPage() {
                 </svg>
               }
               title={`No results for "${search}"`}
-              desc="Try a different medicine name, generic, batch number, or category."
+              description="Try a different medicine name, generic, batch number, or category."
             />
           ) : null}
 
@@ -425,52 +427,9 @@ export default function MedicinesPage() {
               </PageButton>
             </div>
           ) : null}
-        </div>
+        </SurfaceCard>
       </div>
     </AppShell>
-  );
-}
-
-function LoadingScreen() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-surface">
-      <div className="flex flex-col items-center gap-4">
-        <div className="h-10 w-10 animate-spin-loader rounded-full border-4 border-surface-high border-t-primary" />
-        <p className="text-sm font-medium text-on-surface-variant">
-          Loading inventory…
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function IntelCard({
-  label,
-  value,
-  valueColor,
-  note,
-}: {
-  label: string;
-  value: string;
-  valueColor?: string;
-  note: string;
-}) {
-  return (
-    <div
-      className="rounded-lg bg-surface-lowest p-5"
-      style={{ boxShadow: "0 4px 16px rgba(0,66,83,0.06)" }}
-    >
-      <p className="mb-2 text-[0.65rem] font-bold uppercase tracking-[0.08em] text-outline">
-        {label}
-      </p>
-      <p
-        className="text-[2.2rem] font-bold leading-none tracking-[-0.04em]"
-        style={{ color: valueColor ?? "#191c1e" }}
-      >
-        {value}
-      </p>
-      <p className="mt-1 text-xs text-on-surface-variant">{note}</p>
-    </div>
   );
 }
 
@@ -610,58 +569,26 @@ function MedicineRow({
 
 function StatusChip({ medicine }: { medicine: InventoryMedicineSummary }) {
   let label = "Stable";
-  let className = "bg-secondary-container text-on-secondary-container";
+  let tone: "success" | "warning" | "danger" | "neutral" = "success";
 
   if (!medicine.isActive) {
     label = "Inactive";
-    className = "bg-error-container text-on-error-container";
+    tone = "danger";
   } else if (medicine.totalQuantityOnHand === 0) {
     label = "Out of Stock";
-    className = "bg-error-container text-on-error-container";
+    tone = "danger";
   } else if (medicine.isLowStock && medicine.isExpiringSoon) {
     label = "Low + Expiry";
-    className = "bg-tertiary-fixed text-on-tertiary-fixed-variant";
+    tone = "warning";
   } else if (medicine.isLowStock) {
     label = "Low Stock";
-    className = "bg-error-container text-on-error-container";
+    tone = "danger";
   } else if (medicine.isExpiringSoon) {
     label = "Near Expiry";
-    className = "bg-tertiary-fixed text-on-tertiary-fixed-variant";
+    tone = "warning";
   }
 
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.65rem] font-bold tracking-wide ${className}`}
-    >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {label}
-    </span>
-  );
-}
-
-function EmptyState({
-  icon,
-  title,
-  desc,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-3 py-16">
-      <div
-        className="flex h-12 w-12 items-center justify-center rounded-full"
-        style={{ background: "rgba(0,66,83,0.06)" }}
-      >
-        {icon}
-      </div>
-      <p className="text-sm font-semibold text-on-surface">{title}</p>
-      <p className="max-w-[320px] text-center text-xs leading-relaxed text-on-surface-variant">
-        {desc}
-      </p>
-    </div>
-  );
+  return <StatusBadge label={label} tone={tone} />;
 }
 
 function PageButton({

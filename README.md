@@ -162,12 +162,6 @@ npm run test:api:e2e
 5. Add audit logs, alerts, and dashboard summaries.
 6. Add richer reporting and deployment hardening.
 
-## Open-Source And Commercial Direction
+## License
 
-The intended product model is:
-
-- open-source core for self-hosting
-- paid managed cloud hosting
-- paid onboarding, migration, backup, support, and enterprise services
-
-The recommended license direction for the public core is `AGPL-3.0`, though the final license decision should be made before the public launch.
+PharmaHub is licensed under the GNU Affero General Public License v3.0 (`AGPL-3.0-only`). See [LICENSE](./LICENSE).

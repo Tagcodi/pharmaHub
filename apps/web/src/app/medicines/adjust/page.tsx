@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../../components/AppShell";
+import { AppLoading } from "../../components/ui/AppLoading";
 import {
   fetchJson,
   formatError,
@@ -229,7 +230,7 @@ export default function StockAdjustPage() {
   }
 
   if (isLoading) {
-    return <LoadingScreen />;
+    return <AppLoading message="Loading stock intake…" />;
   }
 
   if (!session) {
@@ -688,17 +689,6 @@ export default function StockAdjustPage() {
         </form>
       </div>
     </AppShell>
-  );
-}
-
-function LoadingScreen() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-surface">
-      <div className="flex flex-col items-center gap-4">
-        <div className="h-10 w-10 animate-spin-loader rounded-full border-4 border-surface-high border-t-primary" />
-        <p className="text-sm font-medium text-on-surface-variant">Loading…</p>
-      </div>
-    </div>
   );
 }
 
