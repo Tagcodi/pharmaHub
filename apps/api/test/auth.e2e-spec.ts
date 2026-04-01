@@ -142,6 +142,7 @@ async function main() {
 
     console.log("8. Creating and listing pharmacy staff as the owner");
     const createUserResponse = await requestJson<{
+      id: string;
       email: string;
       role: string;
       branch: { code: string } | null;
@@ -178,7 +179,70 @@ async function main() {
       ["owner@pharmahub.et", "pharmacist@pharmahub.et"]
     );
 
-    console.log("9. Creating and listing medicines in the catalog");
+    console.log("9. Deactivating the pharmacist account");
+    const deactivateByIdResponse = await requestJson<{
+      email: string;
+      isActive: boolean;
+    }>(context.baseUrl, `/users/${createUserResponse.body.id}/status`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        isActive: false,
+      }),
+    });
+
+    assert.equal(deactivateByIdResponse.status, 200);
+    assert.equal(deactivateByIdResponse.body.email, "pharmacist@pharmahub.et");
+    assert.equal(deactivateByIdResponse.body.isActive, false);
+
+    const inactiveLoginResponse = await requestJson<{ message: string }>(
+      context.baseUrl,
+      "/auth/login",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          email: "pharmacist@pharmahub.et",
+          password: "SecurePass123",
+        }),
+      }
+    );
+
+    assert.equal(inactiveLoginResponse.status, 401);
+    assert.equal(inactiveLoginResponse.body.message, "This user account is inactive.");
+
+    console.log("10. Reactivating the pharmacist account");
+    const reactivateUserResponse = await requestJson<{
+      email: string;
+      isActive: boolean;
+    }>(context.baseUrl, `/users/${createUserResponse.body.id}/status`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        isActive: true,
+      }),
+    });
+
+    assert.equal(reactivateUserResponse.status, 200);
+    assert.equal(reactivateUserResponse.body.isActive, true);
+
+    const pharmacistLoginResponse = await requestJson<{
+      user: { email: string; role: string };
+    }>(context.baseUrl, "/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: "pharmacist@pharmahub.et",
+        password: "SecurePass123",
+      }),
+    });
+
+    assert.equal(pharmacistLoginResponse.status, 201);
+    assert.equal(pharmacistLoginResponse.body.user.role, "PHARMACIST");
+
+    console.log("11. Creating and listing medicines in the catalog");
     const createMedicineResponse = await requestJson<{
       id: string;
       name: string;
@@ -224,7 +288,7 @@ async function main() {
     assert.equal(listMedicinesResponse.body[0]?.name, "Paracetamol");
     assert.equal(listMedicinesResponse.body[0]?.genericName, "Acetaminophen");
 
-    console.log("10. Receiving a live stock batch into inventory");
+    console.log("12. Receiving a live stock batch into inventory");
     const stockInResponse = await requestJson<{
       medicine: {
         id: string;
@@ -258,7 +322,7 @@ async function main() {
     assert.equal(stockInResponse.body.batch.quantityOnHand, 12);
     assert.equal(stockInResponse.body.batch.sellingPrice, 15);
 
-    console.log("11. Reading live inventory summaries");
+    console.log("13. Reading live inventory summaries");
     const inventorySummaryResponse = await requestJson<{
       totals: {
         activeBatchCount: number;
@@ -293,7 +357,7 @@ async function main() {
     assert.equal(inventorySummaryResponse.body.medicines[0]?.isLowStock, true);
     assert.equal(inventorySummaryResponse.body.medicines[0]?.isExpiringSoon, true);
 
-    console.log("12. Reading live dashboard analytics");
+    console.log("14. Reading live dashboard analytics");
     const dashboardOverviewResponse = await requestJson<{
       metrics: {
         registeredMedicines: number;
@@ -335,7 +399,7 @@ async function main() {
     );
     assert.ok(dashboardOverviewResponse.body.recentActivity.length >= 1);
 
-    console.log("13. Reading the live POS catalog");
+    console.log("15. Reading the live POS catalog");
     const salesCatalogResponse = await requestJson<{
       medicines: Array<{
         id: string;
@@ -355,7 +419,7 @@ async function main() {
     assert.equal(salesCatalogResponse.body.medicines[0]?.totalQuantityOnHand, 12);
     assert.equal(salesCatalogResponse.body.medicines[0]?.currentSellingPrice, 15);
 
-    console.log("14. Completing a sale through the POS flow");
+    console.log("16. Completing a sale through the POS flow");
     const createSaleResponse = await requestJson<{
       saleNumber: string;
       totalAmount: number;
@@ -389,7 +453,7 @@ async function main() {
     assert.equal(createSaleResponse.body.items[0]?.quantity, 5);
     assert.equal(createSaleResponse.body.items[0]?.batchNumber, "B-2026-001");
 
-    console.log("15. Verifying inventory decreased after the sale");
+    console.log("17. Verifying inventory decreased after the sale");
     const inventoryAfterSaleResponse = await requestJson<{
       totals: {
         totalUnitsOnHand: number;
@@ -419,7 +483,7 @@ async function main() {
       "B-2026-001"
     );
 
-    console.log("16. Reading POS overview with the completed sale");
+    console.log("18. Reading POS overview with the completed sale");
     const salesOverviewResponse = await requestJson<{
       metrics: {
         todaySalesAmount: number;
@@ -445,7 +509,7 @@ async function main() {
     assert.equal(salesOverviewResponse.body.recentSales[0]?.totalAmount, 75);
     assert.equal(salesOverviewResponse.body.recentSales[0]?.itemCount, 5);
 
-    console.log("17. Reading the stock adjustment catalog");
+    console.log("19. Reading the stock adjustment catalog");
     const adjustmentCatalogResponse = await requestJson<{
       medicines: Array<{
         id: string;
@@ -473,7 +537,7 @@ async function main() {
     const adjustmentBatchId = adjustmentCatalogResponse.body.medicines[0]?.batches[0]?.id;
     assert.ok(adjustmentBatchId);
 
-    console.log("18. Recording a theft-suspected stock adjustment");
+    console.log("20. Recording a theft-suspected stock adjustment");
     const adjustStockResponse = await requestJson<{
       reason: string;
       quantityDelta: number;
@@ -504,7 +568,7 @@ async function main() {
     assert.equal(adjustStockResponse.body.batch.batchNumber, "B-2026-001");
     assert.equal(adjustStockResponse.body.medicine.name, "Paracetamol");
 
-    console.log("19. Verifying inventory and adjustment history after the loss event");
+    console.log("21. Verifying inventory and adjustment history after the loss event");
     const inventoryAfterAdjustmentResponse = await requestJson<{
       totals: {
         totalUnitsOnHand: number;
@@ -554,7 +618,7 @@ async function main() {
     assert.equal(adjustmentsResponse.body.adjustments[0]?.quantityDelta, -2);
     assert.equal(adjustmentsResponse.body.adjustments[0]?.quantityAfter, 5);
 
-    console.log("20. Reading the dedicated audit log feed");
+    console.log("22. Reading the dedicated audit log feed");
     const auditLogsResponse = await requestJson<{
       metrics: {
         totalEvents: number;

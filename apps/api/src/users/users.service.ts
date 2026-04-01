@@ -5,6 +5,7 @@ import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../prisma/prisma.service";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import type { CreateUserDto } from "./dto/create-user.dto";
+import type { UpdateUserStatusDto } from "./dto/update-user-status.dto";
 
 @Injectable()
 export class UsersService {
@@ -127,6 +128,99 @@ export class UsersService {
             code: user.branch.code
           }
         : null
+    };
+  }
+
+  async updateUserStatus(
+    currentUser: AuthenticatedUser,
+    userId: string,
+    dto: UpdateUserStatusDto
+  ) {
+    const targetUser = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        pharmacyId: currentUser.pharmacyId,
+      },
+      include: {
+        branch: true,
+      },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException("The specified user was not found.");
+    }
+
+    if (targetUser.role === UserRole.OWNER) {
+      throw new BadRequestException("Owner accounts cannot be changed from this endpoint.");
+    }
+
+    if (!dto.isActive && targetUser.id === currentUser.userId) {
+      throw new BadRequestException("You cannot deactivate your own account.");
+    }
+
+    if (targetUser.isActive === dto.isActive) {
+      return {
+        id: targetUser.id,
+        fullName: targetUser.fullName,
+        email: targetUser.email,
+        role: targetUser.role,
+        isActive: targetUser.isActive,
+        branch: targetUser.branch
+          ? {
+              id: targetUser.branch.id,
+              name: targetUser.branch.name,
+              code: targetUser.branch.code,
+            }
+          : null,
+        createdAt: targetUser.createdAt,
+        lastLoginAt: targetUser.lastLoginAt,
+      };
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: {
+        id: targetUser.id,
+      },
+      data: {
+        isActive: dto.isActive,
+      },
+      include: {
+        branch: true,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        pharmacyId: currentUser.pharmacyId,
+        branchId: updatedUser.branchId,
+        userId: currentUser.userId,
+        action: dto.isActive ? AuditAction.USER_UPDATED : AuditAction.USER_DEACTIVATED,
+        entityType: "User",
+        entityId: updatedUser.id,
+        metadata: {
+          targetRole: updatedUser.role,
+          targetEmail: updatedUser.email,
+          isActive: updatedUser.isActive,
+          changedBy: currentUser.userId,
+        },
+      },
+    });
+
+    return {
+      id: updatedUser.id,
+      fullName: updatedUser.fullName,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      isActive: updatedUser.isActive,
+      branch: updatedUser.branch
+        ? {
+            id: updatedUser.branch.id,
+            name: updatedUser.branch.name,
+            code: updatedUser.branch.code,
+          }
+        : null,
+      createdAt: updatedUser.createdAt,
+      lastLoginAt: updatedUser.lastLoginAt,
     };
   }
 }
