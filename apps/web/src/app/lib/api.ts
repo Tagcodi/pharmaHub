@@ -1,5 +1,11 @@
 export const TOKEN_KEY = "pharmahub.accessToken";
 
+export type PaymentMethodValue =
+  | "CASH"
+  | "CARD"
+  | "MOBILE_MONEY"
+  | "BANK_TRANSFER";
+
 export type SetupStatus = {
   isSetupComplete: boolean;
 };
@@ -621,6 +627,14 @@ export type PrescriptionRecord = {
   createdBy: string;
   itemCount: number;
   totalRequestedUnits: number;
+  sale: {
+    id: string;
+    saleNumber: string;
+    totalAmount: number;
+    paymentMethod: PaymentMethodValue;
+    soldAt: string;
+    status: "COMPLETED" | "VOIDED";
+  } | null;
   items: Array<{
     id: string;
     medicineId: string | null;
@@ -716,7 +730,7 @@ export type SalesOverviewResponse = {
     id: string;
     saleNumber: string;
     totalAmount: number;
-    paymentMethod: "CASH" | "CARD" | "MOBILE_MONEY" | "BANK_TRANSFER";
+    paymentMethod: PaymentMethodValue;
     status: "COMPLETED" | "VOIDED";
     soldAt: string;
     voidedAt: string | null;
@@ -738,7 +752,7 @@ export type VoidSaleResponse = {
   saleNumber: string;
   status: "VOIDED";
   totalAmount: number;
-  paymentMethod: "CASH" | "CARD" | "MOBILE_MONEY" | "BANK_TRANSFER";
+  paymentMethod: PaymentMethodValue;
   soldAt: string;
   voidedAt: string;
   reason: string;
@@ -809,7 +823,7 @@ export type CreateSaleResponse = {
   id: string;
   saleNumber: string;
   totalAmount: number;
-  paymentMethod: "CASH" | "CARD" | "MOBILE_MONEY" | "BANK_TRANSFER";
+  paymentMethod: PaymentMethodValue;
   soldAt: string;
   items: Array<{
     medicineId: string;
@@ -819,6 +833,11 @@ export type CreateSaleResponse = {
     unitPrice: number;
     lineTotal: number;
   }>;
+};
+
+export type DispensePrescriptionResponse = {
+  prescription: PrescriptionRecord;
+  sale: CreateSaleResponse;
 };
 
 export type ReportsSummaryResponse = {

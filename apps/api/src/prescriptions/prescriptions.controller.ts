@@ -5,6 +5,7 @@ import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import { CreatePrescriptionDto } from "./dto/create-prescription.dto";
+import { DispensePrescriptionDto } from "./dto/dispense-prescription.dto";
 import { UpdatePrescriptionStatusDto } from "./dto/update-prescription-status.dto";
 import { PrescriptionsService } from "./prescriptions.service";
 
@@ -36,6 +37,20 @@ export class PrescriptionsController {
     @Body() dto: CreatePrescriptionDto
   ) {
     return this.prescriptionsService.createPrescription(user, dto);
+  }
+
+  @Post(":prescriptionId/dispense")
+  @Roles("OWNER", "PHARMACIST")
+  dispensePrescription(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("prescriptionId") prescriptionId: string,
+    @Body() dto: DispensePrescriptionDto
+  ) {
+    return this.prescriptionsService.dispensePrescription(
+      user,
+      prescriptionId,
+      dto
+    );
   }
 
   @Patch(":prescriptionId/status")

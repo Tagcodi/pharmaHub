@@ -17,10 +17,12 @@ import {
 } from "../i18n/format";
 import {
   TOKEN_KEY,
+  type DispensePrescriptionResponse,
   fetchJson,
   formatError,
   getAuthHeaders,
   getStoredToken,
+  type PaymentMethodValue,
   type PrescriptionCatalogResponse,
   type PrescriptionRecord,
   type PrescriptionStatus,
@@ -41,7 +43,6 @@ export default function PrescriptionsPage() {
   const router = useRouter();
   const { locale } = useI18n();
   const text = PRESCRIPTIONS_COPY[locale] as (typeof PRESCRIPTIONS_COPY)["en"];
-  const statusOptions = getStatusOptions(text);
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [catalog, setCatalog] = useState<PrescriptionCatalogResponse | null>(null);
   const [queue, setQueue] = useState<PrescriptionsQueueResponse | null>(null);
@@ -58,11 +59,14 @@ export default function PrescriptionsPage() {
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
   const [statusUpdate, setStatusUpdate] = useState<PrescriptionStatus>("RECEIVED");
   const [statusNotes, setStatusNotes] = useState("");
+  const [dispensePaymentMethod, setDispensePaymentMethod] =
+    useState<PaymentMethodValue>("CASH");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isDispensing, setIsDispensing] = useState(false);
 
   useEffect(() => {
     void loadPage();
@@ -92,6 +96,10 @@ export default function PrescriptionsPage() {
   const selectedPrescription =
     queue?.prescriptions.find((prescription) => prescription.id === selectedPrescriptionId) ??
     null;
+  const statusOptions = getStatusOptions(text, selectedPrescription?.status);
+  const isStatusLocked =
+    selectedPrescription?.status === "DISPENSED" ||
+    selectedPrescription?.status === "CANCELLED";
 
   useEffect(() => {
     if (!selectedPrescription) {
@@ -100,6 +108,15 @@ export default function PrescriptionsPage() {
 
     setStatusUpdate(selectedPrescription.status);
     setStatusNotes(selectedPrescription.notes ?? "");
+  }, [selectedPrescription]);
+
+  useEffect(() => {
+    if (selectedPrescription?.sale) {
+      setDispensePaymentMethod(selectedPrescription.sale.paymentMethod);
+      return;
+    }
+
+    setDispensePaymentMethod("CASH");
   }, [selectedPrescription]);
 
   async function loadPage() {
@@ -327,6 +344,48 @@ export default function PrescriptionsPage() {
       setError(formatError(err));
     } finally {
       setIsUpdating(false);
+    }
+  }
+
+  async function handleDispensePrescription() {
+    const token = getStoredToken();
+
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    if (!selectedPrescription) {
+      setError(text.selectPrescriptionError);
+      return;
+    }
+
+    setIsDispensing(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const result = await fetchJson<DispensePrescriptionResponse>(
+        `/prescriptions/${selectedPrescription.id}/dispense`,
+        {
+          method: "POST",
+          headers: getAuthHeaders(token),
+          body: JSON.stringify({
+            paymentMethod: dispensePaymentMethod,
+          }),
+        }
+      );
+
+      setSuccessMessage(
+        text.prescriptionDispensedMessage
+          .replace("{number}", result.prescription.prescriptionNumber)
+          .replace("{saleNumber}", result.sale.saleNumber)
+      );
+      await refreshData();
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setIsDispensing(false);
     }
   }
 
@@ -754,6 +813,43 @@ export default function PrescriptionsPage() {
                         </div>
                       ))}
                     </div>
+
+                    {selectedPrescription.sale ? (
+                      <div className="mt-4 rounded-lg border border-outline/10 bg-surface-low px-3 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-on-surface">
+                              {text.linkedSaleTitle}
+                            </p>
+                            <p className="mt-1 text-xs text-on-surface-variant">
+                              {selectedPrescription.sale.saleNumber}
+                            </p>
+                          </div>
+                          <StatusBadge
+                            label={formatPaymentMethod(
+                              selectedPrescription.sale.paymentMethod,
+                              text
+                            )}
+                            tone="info"
+                          />
+                        </div>
+
+                        <div className="mt-3 grid gap-2 text-xs text-on-surface-variant">
+                          <p>
+                            <span className="font-semibold text-on-surface">
+                              {text.saleAmountLabel}
+                            </span>{" "}
+                            ETB {formatNumber(selectedPrescription.sale.totalAmount, locale)}
+                          </p>
+                          <p>
+                            <span className="font-semibold text-on-surface">
+                              {text.saleRecordedLabel}
+                            </span>{" "}
+                            {formatDateTime(selectedPrescription.sale.soldAt, locale)}
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="space-y-3">
@@ -766,6 +862,7 @@ export default function PrescriptionsPage() {
                         onChange={(event) =>
                           setStatusUpdate(event.target.value as PrescriptionStatus)
                         }
+                        disabled={isStatusLocked}
                         className="h-11 w-full rounded-lg border border-outline/10 bg-surface px-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
                       >
                         {statusOptions.map((option) => (
@@ -784,6 +881,7 @@ export default function PrescriptionsPage() {
                         value={statusNotes}
                         onChange={(event) => setStatusNotes(event.target.value)}
                         rows={3}
+                        disabled={isStatusLocked}
                         className="w-full rounded-lg border border-outline/10 bg-surface px-3 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
                         placeholder={text.statusNotesPlaceholder}
                       />
@@ -792,12 +890,56 @@ export default function PrescriptionsPage() {
                     <button
                       type="button"
                       onClick={handleUpdateStatus}
-                      disabled={isUpdating}
+                      disabled={isUpdating || isStatusLocked}
                       className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-outline/10 bg-surface-low text-sm font-bold text-on-surface disabled:cursor-not-allowed disabled:opacity-70"
                     >
                       {isUpdating ? text.updatingButton : text.updateStatusButton}
                     </button>
                   </div>
+
+                  {selectedPrescription.status === "READY" && !selectedPrescription.sale ? (
+                    <div className="rounded-xl border border-primary/10 bg-primary/[0.04] p-4">
+                      <div className="mb-4">
+                        <h3 className="text-sm font-semibold text-on-surface">
+                          {text.dispenseTitle}
+                        </h3>
+                        <p className="mt-1 text-xs text-on-surface-variant">
+                          {text.dispenseDescription}
+                        </p>
+                      </div>
+
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-outline">
+                          {text.paymentMethodField}
+                        </span>
+                        <select
+                          value={dispensePaymentMethod}
+                          onChange={(event) =>
+                            setDispensePaymentMethod(
+                              event.target.value as PaymentMethodValue
+                            )
+                          }
+                          className="h-11 w-full rounded-lg border border-outline/10 bg-surface px-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                          {PAYMENT_METHOD_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {formatPaymentMethod(option.value, text)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={handleDispensePrescription}
+                        disabled={isDispensing}
+                        className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-lg text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-70"
+                        style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
+                      >
+                        {isDispensing ? text.dispensingButton : text.dispenseButton}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <EmptyStateCard
@@ -814,14 +956,22 @@ export default function PrescriptionsPage() {
   );
 }
 
-function getStatusOptions(text: (typeof PRESCRIPTIONS_COPY)["en"]) {
-  return [
+function getStatusOptions(
+  text: (typeof PRESCRIPTIONS_COPY)["en"],
+  currentStatus?: PrescriptionStatus
+) {
+  const options = [
     { value: "RECEIVED" as const, label: text.statusReceived },
     { value: "IN_REVIEW" as const, label: text.statusInReview },
     { value: "READY" as const, label: text.statusReady },
-    { value: "DISPENSED" as const, label: text.statusDispensed },
     { value: "CANCELLED" as const, label: text.statusCancelled },
   ];
+
+  if (currentStatus === "DISPENSED") {
+    return [...options, { value: "DISPENSED" as const, label: text.statusDispensed }];
+  }
+
+  return options;
 }
 
 function getStatusLabel(
@@ -865,6 +1015,32 @@ function getStatusTone(status: PrescriptionStatus) {
   }
 
   return "neutral" as const;
+}
+
+const PAYMENT_METHOD_OPTIONS: Array<{ value: PaymentMethodValue }> = [
+  { value: "CASH" },
+  { value: "CARD" },
+  { value: "MOBILE_MONEY" },
+  { value: "BANK_TRANSFER" },
+];
+
+function formatPaymentMethod(
+  method: PaymentMethodValue,
+  text: (typeof PRESCRIPTIONS_COPY)["en"]
+) {
+  if (method === "CARD") {
+    return text.paymentMethodCard;
+  }
+
+  if (method === "MOBILE_MONEY") {
+    return text.paymentMethodMobileMoney;
+  }
+
+  if (method === "BANK_TRANSFER") {
+    return text.paymentMethodBankTransfer;
+  }
+
+  return text.paymentMethodCash;
 }
 
 const PRESCRIPTIONS_COPY = {
@@ -919,14 +1095,27 @@ const PRESCRIPTIONS_COPY = {
     detailTitle: "Selected Prescription",
     detailDescription:
       "Review the current prescription and move it through the dispensing workflow.",
+    linkedSaleTitle: "Linked Sale",
     receivedLabel: "Received",
     promisedLabel: "Promised",
     dispensedLabel: "Dispensed",
+    saleAmountLabel: "Sale Amount",
+    saleRecordedLabel: "Sale Recorded",
     statusField: "Status",
     statusNotesField: "Queue Notes",
     statusNotesPlaceholder: "Optional notes about preparation or patient follow-up.",
     updateStatusButton: "Update Status",
     updatingButton: "Updating status…",
+    dispenseTitle: "Dispense To POS",
+    dispenseDescription:
+      "Create the live sale from this ready prescription and deduct stock automatically.",
+    paymentMethodField: "Payment Method",
+    paymentMethodCash: "Cash",
+    paymentMethodCard: "Card",
+    paymentMethodMobileMoney: "Mobile Money",
+    paymentMethodBankTransfer: "Bank Transfer",
+    dispenseButton: "Dispense Prescription",
+    dispensingButton: "Dispensing prescription…",
     noSelectionTitle: "Select a prescription",
     noSelectionDescription:
       "Choose a prescription from the queue to review details and update its status.",
@@ -945,6 +1134,8 @@ const PRESCRIPTIONS_COPY = {
       "Prescription {number} created for {patient}.",
     statusUpdatedMessage:
       "Prescription {number} moved to {status}.",
+    prescriptionDispensedMessage:
+      "Prescription {number} was dispensed as sale {saleNumber}.",
   },
   am: {
     loadingWorkspace: "የሀኪም ትዕዛዝ ወረፋ በመጫን ላይ…",
@@ -997,14 +1188,27 @@ const PRESCRIPTIONS_COPY = {
     detailTitle: "የተመረጠ ትዕዛዝ",
     detailDescription:
       "አሁን ያለውን ትዕዛዝ ይገምግሙ እና በየስራ ደረጃው ያንቀሳቅሱት።",
+    linkedSaleTitle: "የተያያዘ ሽያጭ",
     receivedLabel: "የተቀበለበት",
     promisedLabel: "የተገባ ጊዜ",
     dispensedLabel: "የተሰጠበት",
+    saleAmountLabel: "የሽያጭ መጠን",
+    saleRecordedLabel: "ሽያጩ የተመዘገበበት",
     statusField: "ሁኔታ",
     statusNotesField: "የወረፋ ማስታወሻ",
     statusNotesPlaceholder: "ስለ ዝግጅት ወይም ስለ ታካሚ ክትትል ማስታወሻ።",
     updateStatusButton: "ሁኔታ አዘምን",
     updatingButton: "ሁኔታ በማዘመን ላይ…",
+    dispenseTitle: "ወደ POS መስጠት",
+    dispenseDescription:
+      "ከዚህ ዝግጁ ትዕዛዝ ቀጥታ ሽያጭ ይፍጠሩ እና እቃውን በራስ-ሰር ያስቀንሱ።",
+    paymentMethodField: "የክፍያ ዘዴ",
+    paymentMethodCash: "ጥሬ ገንዘብ",
+    paymentMethodCard: "ካርድ",
+    paymentMethodMobileMoney: "ሞባይል ገንዘብ",
+    paymentMethodBankTransfer: "የባንክ ዝውውር",
+    dispenseButton: "ትዕዛዙን ስጥ",
+    dispensingButton: "ትዕዛዙን በመስጠት ላይ…",
     noSelectionTitle: "ትዕዛዝ ይምረጡ",
     noSelectionDescription:
       "ዝርዝሮችን ለማየት እና ሁኔታውን ለማዘመን ከወረፋው ትዕዛዝ ይምረጡ።",
@@ -1023,6 +1227,8 @@ const PRESCRIPTIONS_COPY = {
       "ትዕዛዝ {number} ለ {patient} ተፈጥሯል።",
     statusUpdatedMessage:
       "ትዕዛዝ {number} ወደ {status} ተንቀሳቅሷል።",
+    prescriptionDispensedMessage:
+      "ትዕዛዝ {number} እንደ ሽያጭ {saleNumber} ተሰጥቷል።",
   },
   om: {
     loadingWorkspace: "Tarreen ajaja qorichaa ni fe'amaa jira…",
@@ -1075,14 +1281,27 @@ const PRESCRIPTIONS_COPY = {
     detailTitle: "Ajaja Filatame",
     detailDescription:
       "Ajaja amma jiru ilaali, achiis gara sadarkaa kenniinsaatti dabarsi.",
+    linkedSaleTitle: "Gurgurtaa Walqabate",
     receivedLabel: "Fudhatame",
     promisedLabel: "Beekame",
     dispensedLabel: "Kenname",
+    saleAmountLabel: "Hanga Gurgurtaa",
+    saleRecordedLabel: "Yeroo Gurgurtaan Galmaa'e",
     statusField: "Haala",
     statusNotesField: "Yaadannoo Tarree",
     statusNotesPlaceholder: "Qophiidhaaf yookaan hordoffii dhukkubsataa yaadannoo dabalataa.",
     updateStatusButton: "Haala Haaromsi",
     updatingButton: "Haalli ni haaromfamaa jira…",
+    dispenseTitle: "Gara POS Kenni",
+    dispenseDescription:
+      "Ajaja qophaa'e kana irraa gurgurtaa dhugaa uumiitii kuusaa ofumaan hir'isi.",
+    paymentMethodField: "Mala Kaffaltii",
+    paymentMethodCash: "Maallaqa callaa",
+    paymentMethodCard: "Kaardii",
+    paymentMethodMobileMoney: "Mobile Money",
+    paymentMethodBankTransfer: "Dabarsa Baankii",
+    dispenseButton: "Ajaja Kenni",
+    dispensingButton: "Ajajni kennamaa jira…",
     noSelectionTitle: "Ajaja fili",
     noSelectionDescription:
       "Bal'ina isaa ilaaluuf fi haala isaa haaromsuuf ajaja tarree keessaa fili.",
@@ -1101,5 +1320,7 @@ const PRESCRIPTIONS_COPY = {
       "Ajajni {number} {patient}f uumameera.",
     statusUpdatedMessage:
       "Ajajni {number} gara {status}tti jijjiirameera.",
+    prescriptionDispensedMessage:
+      "Ajajni {number} akka gurgurtaa {saleNumber}tti kennameera.",
   },
 };

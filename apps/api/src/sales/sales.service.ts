@@ -32,6 +32,37 @@ type SaleLine = {
   allocations: BatchAllocation[];
 };
 
+type SaleCreationItemInput = {
+  medicineId: string;
+  quantity: number;
+};
+
+type SaleCreationInput = {
+  paymentMethod: PaymentMethod;
+  items: SaleCreationItemInput[];
+  prescriptionId?: string | null;
+  soldAt?: Date;
+};
+
+type CreatedSalePayload = {
+  sale: {
+    id: string;
+    saleNumber: string;
+    totalAmount: Prisma.Decimal;
+    paymentMethod: PaymentMethod;
+    soldAt: Date;
+    status?: SaleStatus;
+  };
+  items: Array<{
+    medicineId: string;
+    medicineName: string;
+    quantity: number;
+    batchNumber: string;
+    unitPrice: number;
+    lineTotal: number;
+  }>;
+};
+
 @Injectable()
 export class SalesService {
   private readonly prisma: PrismaService;
@@ -405,10 +436,47 @@ export class SalesService {
 
   async createSale(currentUser: AuthenticatedUser, dto: CreateSaleDto) {
     const branch = await this.resolveBranch(currentUser);
-    const normalizedItems = this.normalizeItems(dto);
+    const result = await this.prisma.$transaction((tx) =>
+      this.createSaleRecordInTransaction(tx, currentUser, branch, {
+        paymentMethod: dto.paymentMethod,
+        items: dto.items,
+      })
+    );
+
+    return this.serializeCreatedSale(result);
+  }
+
+  async createSaleRecordInTransaction(
+    tx: Prisma.TransactionClient,
+    currentUser: AuthenticatedUser,
+    branch: {
+      id: string;
+      code: string;
+    },
+    input: SaleCreationInput
+  ): Promise<CreatedSalePayload> {
+    const normalizedItems = this.normalizeSaleItems(input.items);
+
+    if (input.prescriptionId) {
+      const existingPrescriptionSale = await tx.sale.findFirst({
+        where: {
+          pharmacyId: currentUser.pharmacyId,
+          prescriptionId: input.prescriptionId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (existingPrescriptionSale) {
+        throw new BadRequestException(
+          "This prescription has already been dispensed into a sale."
+        );
+      }
+    }
 
     const medicineIds = normalizedItems.map((item) => item.medicineId);
-    const medicines = await this.prisma.medicine.findMany({
+    const medicines = await tx.medicine.findMany({
       where: {
         pharmacyId: currentUser.pharmacyId,
         id: {
@@ -439,7 +507,7 @@ export class SalesService {
     const saleLines = await Promise.all(
       normalizedItems.map(async (item) => {
         const medicine = medicineMap.get(item.medicineId)!;
-        const batches = await this.prisma.stockBatch.findMany({
+        const batches = await tx.stockBatch.findMany({
           where: {
             pharmacyId: currentUser.pharmacyId,
             branchId: branch.id,
@@ -497,7 +565,7 @@ export class SalesService {
     );
 
     const saleNumber = this.generateSaleNumber(branch.code);
-    const soldAt = new Date();
+    const soldAt = input.soldAt ?? new Date();
     const totalAmount = saleLines.reduce((sum, line) => {
       return (
         sum +
@@ -509,106 +577,98 @@ export class SalesService {
       );
     }, 0);
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const sale = await tx.sale.create({
-        data: {
-          pharmacyId: currentUser.pharmacyId,
-          branchId: branch.id,
-          saleNumber,
-          totalAmount,
-          paymentMethod: dto.paymentMethod,
-          soldById: currentUser.userId,
-          soldAt,
-        },
-      });
-
-      for (const line of saleLines) {
-        for (const allocation of line.allocations) {
-          await tx.saleItem.create({
-            data: {
-              saleId: sale.id,
-              medicineId: line.medicineId,
-              stockBatchId: allocation.batchId,
-              quantity: allocation.quantity,
-              unitPrice: allocation.unitPrice,
-              lineTotal: this.roundCurrency(
-                allocation.quantity * this.toNumber(allocation.unitPrice)
-              ),
-            },
-          });
-
-          await tx.stockBatch.update({
-            where: {
-              id: allocation.batchId,
-            },
-            data: {
-              quantityOnHand: allocation.quantityAfter,
-            },
-          });
-
-          await tx.stockMovement.create({
-            data: {
-              pharmacyId: currentUser.pharmacyId,
-              branchId: branch.id,
-              medicineId: line.medicineId,
-              stockBatchId: allocation.batchId,
-              movementType: MovementType.SALE,
-              referenceType: ReferenceType.SALE,
-              referenceId: sale.id,
-              quantityDelta: allocation.quantity * -1,
-              quantityAfter: allocation.quantityAfter,
-              createdById: currentUser.userId,
-            },
-          });
-        }
-      }
-
-      await tx.auditLog.create({
-        data: {
-          pharmacyId: currentUser.pharmacyId,
-          branchId: branch.id,
-          userId: currentUser.userId,
-          action: AuditAction.SALE_CREATED,
-          entityType: "Sale",
-          entityId: sale.id,
-          metadata: {
-            saleNumber: sale.saleNumber,
-            itemCount: saleLines.reduce(
-              (sum, line) => sum + line.requestedQuantity,
-              0
-            ),
-            paymentMethod: sale.paymentMethod,
-            totalAmount: this.roundCurrency(totalAmount),
-          },
-        },
-      });
-
-      const items = saleLines.flatMap((line) =>
-        line.allocations.map((allocation) => ({
-          medicineId: line.medicineId,
-          medicineName: line.medicineName,
-          quantity: allocation.quantity,
-          batchNumber: allocation.batchNumber,
-          unitPrice: this.roundCurrency(this.toNumber(allocation.unitPrice)),
-          lineTotal: this.roundCurrency(
-            allocation.quantity * this.toNumber(allocation.unitPrice)
-          ),
-        }))
-      );
-
-      return {
-        sale,
-        items,
-      };
+    const sale = await tx.sale.create({
+      data: {
+        pharmacyId: currentUser.pharmacyId,
+        branchId: branch.id,
+        prescriptionId: input.prescriptionId ?? undefined,
+        saleNumber,
+        totalAmount,
+        paymentMethod: input.paymentMethod,
+        soldById: currentUser.userId,
+        soldAt,
+      },
     });
 
+    for (const line of saleLines) {
+      for (const allocation of line.allocations) {
+        await tx.saleItem.create({
+          data: {
+            saleId: sale.id,
+            medicineId: line.medicineId,
+            stockBatchId: allocation.batchId,
+            quantity: allocation.quantity,
+            unitPrice: allocation.unitPrice,
+            lineTotal: this.roundCurrency(
+              allocation.quantity * this.toNumber(allocation.unitPrice)
+            ),
+          },
+        });
+
+        await tx.stockBatch.update({
+          where: {
+            id: allocation.batchId,
+          },
+          data: {
+            quantityOnHand: allocation.quantityAfter,
+          },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            pharmacyId: currentUser.pharmacyId,
+            branchId: branch.id,
+            medicineId: line.medicineId,
+            stockBatchId: allocation.batchId,
+            movementType: MovementType.SALE,
+            referenceType: ReferenceType.SALE,
+            referenceId: sale.id,
+            quantityDelta: allocation.quantity * -1,
+            quantityAfter: allocation.quantityAfter,
+            createdById: currentUser.userId,
+          },
+        });
+      }
+    }
+
+    await tx.auditLog.create({
+      data: {
+        pharmacyId: currentUser.pharmacyId,
+        branchId: branch.id,
+        userId: currentUser.userId,
+        action: AuditAction.SALE_CREATED,
+        entityType: "Sale",
+        entityId: sale.id,
+        metadata: {
+          saleNumber: sale.saleNumber,
+          itemCount: saleLines.reduce(
+            (sum, line) => sum + line.requestedQuantity,
+            0
+          ),
+          paymentMethod: sale.paymentMethod,
+          totalAmount: this.roundCurrency(totalAmount),
+          source: input.prescriptionId ? "PRESCRIPTION" : "POS",
+          prescriptionId: input.prescriptionId ?? null,
+        },
+      },
+    });
+
+    const items = saleLines.flatMap((line) =>
+      line.allocations.map((allocation) => ({
+        medicineId: line.medicineId,
+        medicineName: line.medicineName,
+        quantity: allocation.quantity,
+        batchNumber: allocation.batchNumber,
+        unitPrice: this.roundCurrency(this.toNumber(allocation.unitPrice)),
+        lineTotal: this.roundCurrency(
+          allocation.quantity * this.toNumber(allocation.unitPrice)
+        ),
+      }))
+    );
+
     return {
-      id: result.sale.id,
-      saleNumber: result.sale.saleNumber,
-      totalAmount: this.roundCurrency(this.toNumber(result.sale.totalAmount)),
-      paymentMethod: result.sale.paymentMethod,
-      soldAt: result.sale.soldAt,
-      items: result.items,
+      sale,
+      items,
     };
   }
 
@@ -740,10 +800,21 @@ export class SalesService {
     };
   }
 
-  private normalizeItems(dto: CreateSaleDto) {
+  private serializeCreatedSale(result: CreatedSalePayload) {
+    return {
+      id: result.sale.id,
+      saleNumber: result.sale.saleNumber,
+      totalAmount: this.roundCurrency(this.toNumber(result.sale.totalAmount)),
+      paymentMethod: result.sale.paymentMethod,
+      soldAt: result.sale.soldAt,
+      items: result.items,
+    };
+  }
+
+  private normalizeSaleItems(items: SaleCreationItemInput[]) {
     const merged = new Map<string, number>();
 
-    for (const item of dto.items) {
+    for (const item of items) {
       merged.set(item.medicineId, (merged.get(item.medicineId) ?? 0) + item.quantity);
     }
 

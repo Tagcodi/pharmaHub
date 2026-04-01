@@ -9,7 +9,9 @@ import {
 } from "@prisma/client";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import { PrismaService } from "../prisma/prisma.service";
+import { SalesService } from "../sales/sales.service";
 import type { CreatePrescriptionDto } from "./dto/create-prescription.dto";
+import type { DispensePrescriptionDto } from "./dto/dispense-prescription.dto";
 import type { UpdatePrescriptionStatusDto } from "./dto/update-prescription-status.dto";
 
 const LOW_STOCK_THRESHOLD = 20;
@@ -36,6 +38,14 @@ type PrescriptionWithDetails = {
   createdBy: {
     fullName: string;
   };
+  sale: {
+    id: string;
+    saleNumber: string;
+    totalAmount: Prisma.Decimal;
+    paymentMethod: string;
+    soldAt: Date;
+    status: string;
+  } | null;
   items: Array<{
     id: string;
     medicineId: string | null;
@@ -55,9 +65,11 @@ type PrescriptionWithDetails = {
 @Injectable()
 export class PrescriptionsService {
   private readonly prisma: PrismaService;
+  private readonly salesService: SalesService;
 
-  constructor(prisma: PrismaService) {
+  constructor(prisma: PrismaService, salesService: SalesService) {
     this.prisma = prisma;
+    this.salesService = salesService;
   }
 
   async getCatalog(currentUser: AuthenticatedUser) {
@@ -139,6 +151,16 @@ export class PrescriptionsService {
         createdBy: {
           select: {
             fullName: true,
+          },
+        },
+        sale: {
+          select: {
+            id: true,
+            saleNumber: true,
+            totalAmount: true,
+            paymentMethod: true,
+            soldAt: true,
+            status: true,
           },
         },
         items: {
@@ -288,6 +310,16 @@ export class PrescriptionsService {
               fullName: true,
             },
           },
+          sale: {
+            select: {
+              id: true,
+              saleNumber: true,
+              totalAmount: true,
+              paymentMethod: true,
+              soldAt: true,
+              status: true,
+            },
+          },
           items: {
             include: {
               medicine: {
@@ -327,6 +359,187 @@ export class PrescriptionsService {
     return this.serializePrescription(result);
   }
 
+  async dispensePrescription(
+    currentUser: AuthenticatedUser,
+    prescriptionId: string,
+    dto: DispensePrescriptionDto
+  ) {
+    const branch = await this.resolveBranch(currentUser);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const prescriptionTx = tx as Prisma.TransactionClient & {
+        prescription: {
+          findFirst: (args: unknown) => Promise<PrescriptionWithDetails | null>;
+          update: (args: unknown) => Promise<PrescriptionWithDetails>;
+        };
+      };
+
+      const prescription = await prescriptionTx.prescription.findFirst({
+        where: {
+          id: prescriptionId,
+          pharmacyId: currentUser.pharmacyId,
+          branchId: branch.id,
+        },
+        include: {
+          createdBy: {
+            select: {
+              fullName: true,
+            },
+          },
+          sale: {
+            select: {
+              id: true,
+              saleNumber: true,
+              totalAmount: true,
+              paymentMethod: true,
+              soldAt: true,
+              status: true,
+            },
+          },
+          items: {
+            include: {
+              medicine: {
+                select: {
+                  id: true,
+                  genericName: true,
+                  form: true,
+                  strength: true,
+                  unit: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!prescription) {
+        throw new NotFoundException("Prescription was not found.");
+      }
+
+      if (prescription.status === "DISPENSED") {
+        throw new BadRequestException(
+          "This prescription has already been dispensed."
+        );
+      }
+
+      if (prescription.status === "CANCELLED") {
+        throw new BadRequestException(
+          "Cancelled prescriptions cannot be dispensed."
+        );
+      }
+
+      if (prescription.status !== "READY") {
+        throw new BadRequestException(
+          "Move the prescription to Ready before dispensing it."
+        );
+      }
+
+      if (prescription.sale) {
+        throw new BadRequestException(
+          "This prescription already has a linked sale."
+        );
+      }
+
+      const missingMedicine = prescription.items.find((item) => !item.medicineId);
+
+      if (missingMedicine) {
+        throw new BadRequestException(
+          `${missingMedicine.medicineName} is no longer linked to an active catalog medicine.`
+        );
+      }
+
+      const sale = await this.salesService.createSaleRecordInTransaction(
+        tx,
+        currentUser,
+        branch,
+        {
+          paymentMethod: dto.paymentMethod,
+          prescriptionId: prescription.id,
+          items: prescription.items.map((item) => ({
+            medicineId: item.medicineId!,
+            quantity: item.quantity,
+          })),
+        }
+      );
+
+      const updatedPrescription = await prescriptionTx.prescription.update({
+        where: {
+          id: prescription.id,
+        },
+        data: {
+          status: "DISPENSED",
+          dispensedAt: sale.sale.soldAt,
+        },
+        include: {
+          createdBy: {
+            select: {
+              fullName: true,
+            },
+          },
+          sale: {
+            select: {
+              id: true,
+              saleNumber: true,
+              totalAmount: true,
+              paymentMethod: true,
+              soldAt: true,
+              status: true,
+            },
+          },
+          items: {
+            include: {
+              medicine: {
+                select: {
+                  id: true,
+                  genericName: true,
+                  form: true,
+                  strength: true,
+                  unit: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          pharmacyId: currentUser.pharmacyId,
+          branchId: branch.id,
+          userId: currentUser.userId,
+          action: AuditAction.PRESCRIPTION_STATUS_UPDATED,
+          entityType: "Prescription",
+          entityId: prescription.id,
+          metadata: {
+            prescriptionNumber: prescription.prescriptionNumber,
+            patientName: prescription.patientName,
+            previousStatus: prescription.status,
+            status: updatedPrescription.status,
+            saleNumber: sale.sale.saleNumber,
+            paymentMethod: sale.sale.paymentMethod,
+          },
+        },
+      });
+
+      return {
+        prescription: updatedPrescription,
+        sale: {
+          id: sale.sale.id,
+          saleNumber: sale.sale.saleNumber,
+          totalAmount: this.roundCurrency(this.toNumber(sale.sale.totalAmount)),
+          paymentMethod: sale.sale.paymentMethod,
+          soldAt: sale.sale.soldAt,
+          items: sale.items,
+        },
+      };
+    });
+
+    return {
+      prescription: this.serializePrescription(result.prescription),
+      sale: result.sale,
+    };
+  }
+
   async updateStatus(
     currentUser: AuthenticatedUser,
     prescriptionId: string,
@@ -354,6 +567,16 @@ export class PrescriptionsService {
               fullName: true,
             },
           },
+          sale: {
+            select: {
+              id: true,
+              saleNumber: true,
+              totalAmount: true,
+              paymentMethod: true,
+              soldAt: true,
+              status: true,
+            },
+          },
           items: {
             include: {
               medicine: {
@@ -374,10 +597,13 @@ export class PrescriptionsService {
         throw new NotFoundException("Prescription was not found.");
       }
 
-      if (
-        prescription.status === "DISPENSED" &&
-        dto.status !== "DISPENSED"
-      ) {
+      if (dto.status === "DISPENSED") {
+        throw new BadRequestException(
+          "Use the prescription dispensing flow to create the sale and mark it as dispensed."
+        );
+      }
+
+      if (prescription.status === "DISPENSED") {
         throw new BadRequestException(
           "Dispensed prescriptions cannot move back to another status."
         );
@@ -403,17 +629,22 @@ export class PrescriptionsService {
             dto.status === "READY"
               ? prescription.preparedAt ?? new Date()
               : prescription.preparedAt,
-          dispensedAt:
-            dto.status === "DISPENSED"
-              ? prescription.dispensedAt ?? new Date()
-              : dto.status === "CANCELLED"
-                ? prescription.dispensedAt
-                : prescription.dispensedAt,
+          dispensedAt: prescription.dispensedAt,
         },
         include: {
           createdBy: {
             select: {
               fullName: true,
+            },
+          },
+          sale: {
+            select: {
+              id: true,
+              saleNumber: true,
+              totalAmount: true,
+              paymentMethod: true,
+              soldAt: true,
+              status: true,
             },
           },
           items: {
@@ -506,6 +737,16 @@ export class PrescriptionsService {
         (sum, item) => sum + item.quantity,
         0
       ),
+      sale: prescription.sale
+        ? {
+            id: prescription.sale.id,
+            saleNumber: prescription.sale.saleNumber,
+            totalAmount: this.roundCurrency(this.toNumber(prescription.sale.totalAmount)),
+            paymentMethod: prescription.sale.paymentMethod,
+            soldAt: prescription.sale.soldAt,
+            status: prescription.sale.status,
+          }
+        : null,
       items: prescription.items.map((item) => ({
         id: item.id,
         medicineId: item.medicineId,
@@ -570,5 +811,9 @@ export class PrescriptionsService {
 
   private toNumber(value: Prisma.Decimal | number) {
     return typeof value === "number" ? value : Number(value);
+  }
+
+  private roundCurrency(value: number) {
+    return Number(value.toFixed(2));
   }
 }

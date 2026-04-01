@@ -277,6 +277,7 @@ model Prescription {
   branch     Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
   createdBy  User               @relation("PrescriptionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   items      PrescriptionItem[]
+  sale       Sale?
 
   @@unique([branchId, prescriptionNumber])
   @@index([branchId, status, receivedAt])
@@ -304,6 +305,7 @@ model Sale {
   id           String        @id @default(uuid())
   pharmacyId   String
   branchId     String
+  prescriptionId String?
   saleNumber   String
   status       SaleStatus    @default(COMPLETED)
   totalAmount  Decimal       @db.Decimal(12, 2)
@@ -315,9 +317,11 @@ model Sale {
 
   branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
   pharmacy       Pharmacy        @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  prescription   Prescription?   @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
   soldBy         User            @relation("SaleSoldBy", fields: [soldById], references: [id], onDelete: Restrict)
   items          SaleItem[]
 
+  @@unique([prescriptionId])
   @@unique([branchId, saleNumber])
   @@index([branchId, soldAt])
   @@map("sales")
