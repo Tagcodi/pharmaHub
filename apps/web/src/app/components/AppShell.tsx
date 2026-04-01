@@ -32,6 +32,8 @@ const ICONS = {
   inventory:
     "M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z",
   sales:   "M17 2H7c-1.1 0-2 .9-2 2v16l7-3 7 3V4c0-1.1-.9-2-2-2z",
+  prescriptions:
+    "M8 3h8M8 7h8M8 11h5M5 3h.01M5 7h.01M5 11h.01M4 19h16",
   alerts:  "M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0",
   audit:
     "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
@@ -56,6 +58,7 @@ const PRIMARY_NAV = [
   { href: "/dashboard", labelKey: "shell.nav.dashboard", icon: "dashboard" as const },
   { href: "/medicines", labelKey: "shell.nav.inventory", icon: "inventory" as const },
   { href: "/sales", labelKey: "shell.nav.sales", icon: "sales" as const },
+  { href: "/prescriptions", labelKey: "shell.nav.prescriptions", icon: "prescriptions" as const },
   { href: "/alerts", labelKey: "shell.nav.alerts", icon: "alerts" as const },
 ] as const;
 
@@ -147,7 +150,11 @@ export function AppShell({ session, children }: AppShellProps) {
   const primaryNav = PRIMARY_NAV.filter((item) => {
     if (
       role === "CASHIER" &&
-      (item.href === "/medicines" || item.href === "/alerts")
+      (
+        item.href === "/medicines" ||
+        item.href === "/prescriptions" ||
+        item.href === "/alerts"
+      )
     ) {
       return false;
     }

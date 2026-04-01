@@ -1484,7 +1484,161 @@ async function main() {
       24
     );
 
-    console.log("Inventory disposal e2e checks passed.");
+    console.log("44. Reading the prescription catalog");
+    const prescriptionCatalogResponse = await requestJson<{
+      metrics: {
+        totalMedicines: number;
+        stockedMedicines: number;
+        lowStockCount: number;
+      };
+      medicines: Array<{
+        id: string;
+        name: string;
+        totalQuantityOnHand: number;
+      }>;
+    }>(context.baseUrl, "/prescriptions/catalog", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(prescriptionCatalogResponse.status, 200);
+    assert.equal(prescriptionCatalogResponse.body.metrics.totalMedicines, 1);
+    assert.equal(prescriptionCatalogResponse.body.metrics.stockedMedicines, 1);
+    assert.equal(prescriptionCatalogResponse.body.metrics.lowStockCount, 0);
+    assert.equal(prescriptionCatalogResponse.body.medicines[0]?.name, "Paracetamol");
+    assert.equal(
+      prescriptionCatalogResponse.body.medicines[0]?.totalQuantityOnHand,
+      24
+    );
+
+    console.log("45. Creating a prescription intake");
+    const promisedAt = new Date(receivedAt);
+    promisedAt.setUTCHours(promisedAt.getUTCHours() + 2);
+
+    const createPrescriptionResponse = await requestJson<{
+      id: string;
+      prescriptionNumber: string;
+      patientName: string;
+      status: string;
+      itemCount: number;
+      totalRequestedUnits: number;
+      items: Array<{
+        medicineName: string;
+        quantity: number;
+        instructions: string | null;
+      }>;
+    }>(context.baseUrl, "/prescriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        patientName: "Selamawit Bekele",
+        patientPhone: "+251911223344",
+        prescriberName: "Dr. Meron Alemu",
+        promisedAt: promisedAt.toISOString(),
+        notes: "Customer will return after lunch",
+        items: [
+          {
+            medicineId: createMedicineResponse.body.id,
+            quantity: 2,
+            instructions: "1 tablet twice daily after meals",
+          },
+        ],
+      }),
+    });
+
+    assert.equal(createPrescriptionResponse.status, 201);
+    assert.match(createPrescriptionResponse.body.prescriptionNumber, /^MAIN-RX-/);
+    assert.equal(createPrescriptionResponse.body.patientName, "Selamawit Bekele");
+    assert.equal(createPrescriptionResponse.body.status, "RECEIVED");
+    assert.equal(createPrescriptionResponse.body.itemCount, 1);
+    assert.equal(createPrescriptionResponse.body.totalRequestedUnits, 2);
+    assert.equal(createPrescriptionResponse.body.items[0]?.medicineName, "Paracetamol");
+    assert.equal(createPrescriptionResponse.body.items[0]?.quantity, 2);
+
+    console.log("46. Reading the prescription queue and updating status");
+    const prescriptionsQueueResponse = await requestJson<{
+      metrics: {
+        totalPrescriptions: number;
+        activeQueueCount: number;
+        receivedCount: number;
+        inReviewCount: number;
+        readyCount: number;
+        dispensedTodayCount: number;
+      };
+      prescriptions: Array<{
+        id: string;
+        prescriptionNumber: string;
+        status: string;
+        patientName: string;
+      }>;
+    }>(context.baseUrl, "/prescriptions", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(prescriptionsQueueResponse.status, 200);
+    assert.equal(prescriptionsQueueResponse.body.metrics.totalPrescriptions, 1);
+    assert.equal(prescriptionsQueueResponse.body.metrics.activeQueueCount, 1);
+    assert.equal(prescriptionsQueueResponse.body.metrics.receivedCount, 1);
+    assert.equal(prescriptionsQueueResponse.body.metrics.inReviewCount, 0);
+    assert.equal(prescriptionsQueueResponse.body.metrics.readyCount, 0);
+    assert.equal(prescriptionsQueueResponse.body.metrics.dispensedTodayCount, 0);
+    assert.equal(
+      prescriptionsQueueResponse.body.prescriptions[0]?.prescriptionNumber,
+      createPrescriptionResponse.body.prescriptionNumber
+    );
+
+    const updatePrescriptionStatusResponse = await requestJson<{
+      prescriptionNumber: string;
+      status: string;
+      preparedAt: string | null;
+    }>(
+      context.baseUrl,
+      `/prescriptions/${createPrescriptionResponse.body.id}/status`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          status: "READY",
+          notes: "Packed and ready for pickup",
+        }),
+      }
+    );
+
+    assert.equal(updatePrescriptionStatusResponse.status, 200);
+    assert.equal(
+      updatePrescriptionStatusResponse.body.prescriptionNumber,
+      createPrescriptionResponse.body.prescriptionNumber
+    );
+    assert.equal(updatePrescriptionStatusResponse.body.status, "READY");
+    assert.match(updatePrescriptionStatusResponse.body.preparedAt ?? "", /\d{4}-\d{2}-\d{2}T/);
+
+    const prescriptionsAfterUpdateResponse = await requestJson<{
+      metrics: {
+        receivedCount: number;
+        readyCount: number;
+      };
+      prescriptions: Array<{
+        status: string;
+      }>;
+    }>(context.baseUrl, "/prescriptions", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(prescriptionsAfterUpdateResponse.status, 200);
+    assert.equal(prescriptionsAfterUpdateResponse.body.metrics.receivedCount, 0);
+    assert.equal(prescriptionsAfterUpdateResponse.body.metrics.readyCount, 1);
+    assert.equal(prescriptionsAfterUpdateResponse.body.prescriptions[0]?.status, "READY");
+
+    console.log("Prescription queue e2e checks passed.");
   } finally {
     await context.close();
   }

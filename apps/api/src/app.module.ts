@@ -8,6 +8,7 @@ import { HealthController } from "./health/health.controller";
 import { InventoryModule } from "./inventory/inventory.module";
 import { MedicinesModule } from "./medicines/medicines.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { PrescriptionsModule } from "./prescriptions/prescriptions.module";
 import { PurchaseOrdersModule } from "./purchase-orders/purchase-orders.module";
 import { ReportsModule } from "./reports/reports.module";
 import { SalesModule } from "./sales/sales.module";
@@ -25,6 +26,7 @@ import { UsersModule } from "./users/users.module";
     InventoryModule,
     DashboardModule,
     SalesModule,
+    PrescriptionsModule,
     PurchaseOrdersModule,
     ReportsModule,
   ],
