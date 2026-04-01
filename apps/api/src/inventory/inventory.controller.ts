@@ -5,6 +5,7 @@ import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import { AdjustStockDto } from "./dto/adjust-stock.dto";
+import { CreateDisposalDto } from "./dto/create-disposal.dto";
 import { CycleCountDto } from "./dto/cycle-count.dto";
 import { StockInDto } from "./dto/stock-in.dto";
 import { InventoryService } from "./inventory.service";
@@ -36,6 +37,18 @@ export class InventoryController {
     return this.inventoryService.getAdjustments(user);
   }
 
+  @Get("disposal-catalog")
+  @Roles("OWNER", "PHARMACIST")
+  getDisposalCatalog(@CurrentUser() user: AuthenticatedUser) {
+    return this.inventoryService.getDisposalCatalog(user);
+  }
+
+  @Get("disposals")
+  @Roles("OWNER", "PHARMACIST")
+  getDisposals(@CurrentUser() user: AuthenticatedUser) {
+    return this.inventoryService.getDisposals(user);
+  }
+
   @Get("count-catalog")
   @Roles("OWNER", "PHARMACIST")
   getCountCatalog(@CurrentUser() user: AuthenticatedUser) {
@@ -64,6 +77,15 @@ export class InventoryController {
     @Body() dto: AdjustStockDto
   ) {
     return this.inventoryService.adjustStock(user, dto);
+  }
+
+  @Post("disposals")
+  @Roles("OWNER", "PHARMACIST")
+  createDisposal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateDisposalDto
+  ) {
+    return this.inventoryService.createDisposal(user, dto);
   }
 
   @Post("cycle-counts")

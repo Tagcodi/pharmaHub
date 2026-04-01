@@ -1349,7 +1349,142 @@ async function main() {
       "Purchase order received"
     );
 
-    console.log("Restocking and purchase order e2e checks passed.");
+    console.log("41. Reading the disposal catalog");
+    const disposalCatalogResponse = await requestJson<{
+      metrics: {
+        totalBatches: number;
+        totalUnitsOnHand: number;
+        expiredBatchCount: number;
+        expiringSoonBatchCount: number;
+        returnableBatchCount: number;
+      };
+      batches: Array<{
+        stockBatchId: string;
+        medicineName: string;
+        batchNumber: string;
+        quantityOnHand: number;
+        canReturnToSupplier: boolean;
+        isExpired: boolean;
+        isExpiringSoon: boolean;
+      }>;
+    }>(context.baseUrl, "/inventory/disposal-catalog", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(disposalCatalogResponse.status, 200);
+    assert.equal(disposalCatalogResponse.body.metrics.totalBatches, 2);
+    assert.equal(disposalCatalogResponse.body.metrics.totalUnitsOnHand, 28);
+    assert.equal(disposalCatalogResponse.body.metrics.expiredBatchCount, 0);
+    assert.equal(disposalCatalogResponse.body.metrics.expiringSoonBatchCount, 1);
+    assert.equal(disposalCatalogResponse.body.metrics.returnableBatchCount, 2);
+    assert.equal(disposalCatalogResponse.body.batches[0]?.medicineName, "Paracetamol");
+    assert.equal(disposalCatalogResponse.body.batches[0]?.isExpiringSoon, true);
+    assert.equal(disposalCatalogResponse.body.batches[1]?.batchNumber, "B-2026-002");
+    assert.equal(disposalCatalogResponse.body.batches[1]?.canReturnToSupplier, true);
+
+    const returnableBatchId = disposalCatalogResponse.body.batches.find(
+      (batch) => batch.batchNumber === "B-2026-002"
+    )?.stockBatchId;
+    assert.ok(returnableBatchId);
+
+    console.log("42. Returning part of a supplier batch upstream");
+    const createDisposalResponse = await requestJson<{
+      reason: string;
+      quantityRemoved: number;
+      quantityAfter: number;
+      supplierName: string | null;
+      batch: {
+        batchNumber: string;
+      };
+      medicine: {
+        name: string;
+      };
+    }>(context.baseUrl, "/inventory/disposals", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        stockBatchId: returnableBatchId,
+        quantity: 4,
+        reason: "RETURN_TO_SUPPLIER",
+        notes: "Returned overstocks after supplier review",
+      }),
+    });
+
+    assert.equal(createDisposalResponse.status, 201);
+    assert.equal(createDisposalResponse.body.reason, "RETURN_TO_SUPPLIER");
+    assert.equal(createDisposalResponse.body.quantityRemoved, 4);
+    assert.equal(createDisposalResponse.body.quantityAfter, 16);
+    assert.equal(createDisposalResponse.body.supplierName, "EPSS");
+    assert.equal(createDisposalResponse.body.batch.batchNumber, "B-2026-002");
+    assert.equal(createDisposalResponse.body.medicine.name, "Paracetamol");
+
+    console.log("43. Verifying disposal history and updated inventory");
+    const disposalsResponse = await requestJson<{
+      metrics: {
+        totalDisposals: number;
+        damagedCount: number;
+        expiredCount: number;
+        returnedCount: number;
+        totalUnitsRemoved: number;
+        totalRetailValueRemoved: number;
+      };
+      disposals: Array<{
+        reason: string;
+        quantityRemoved: number;
+        quantityAfter: number;
+        batch: {
+          batchNumber: string;
+          supplierName: string | null;
+        };
+      }>;
+    }>(context.baseUrl, "/inventory/disposals", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(disposalsResponse.status, 200);
+    assert.equal(disposalsResponse.body.metrics.totalDisposals, 1);
+    assert.equal(disposalsResponse.body.metrics.damagedCount, 0);
+    assert.equal(disposalsResponse.body.metrics.expiredCount, 0);
+    assert.equal(disposalsResponse.body.metrics.returnedCount, 1);
+    assert.equal(disposalsResponse.body.metrics.totalUnitsRemoved, 4);
+    assert.equal(disposalsResponse.body.metrics.totalRetailValueRemoved, 64);
+    assert.equal(disposalsResponse.body.disposals[0]?.reason, "RETURN_TO_SUPPLIER");
+    assert.equal(disposalsResponse.body.disposals[0]?.quantityRemoved, 4);
+    assert.equal(disposalsResponse.body.disposals[0]?.quantityAfter, 16);
+    assert.equal(disposalsResponse.body.disposals[0]?.batch.batchNumber, "B-2026-002");
+    assert.equal(disposalsResponse.body.disposals[0]?.batch.supplierName, "EPSS");
+
+    const inventoryAfterDisposalResponse = await requestJson<{
+      totals: {
+        totalUnitsOnHand: number;
+        totalStockValue: number;
+        lowStockCount: number;
+      };
+      medicines: Array<{
+        totalQuantityOnHand: number;
+      }>;
+    }>(context.baseUrl, "/inventory/summary", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(inventoryAfterDisposalResponse.status, 200);
+    assert.equal(inventoryAfterDisposalResponse.body.totals.totalUnitsOnHand, 24);
+    assert.equal(inventoryAfterDisposalResponse.body.totals.totalStockValue, 376);
+    assert.equal(inventoryAfterDisposalResponse.body.totals.lowStockCount, 0);
+    assert.equal(
+      inventoryAfterDisposalResponse.body.medicines[0]?.totalQuantityOnHand,
+      24
+    );
+
+    console.log("Inventory disposal e2e checks passed.");
   } finally {
     await context.close();
   }

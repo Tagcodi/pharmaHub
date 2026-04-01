@@ -234,6 +234,100 @@ export type CreateAdjustmentResponse = {
   };
 };
 
+export type DisposalCatalogResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  metrics: {
+    totalBatches: number;
+    totalUnitsOnHand: number;
+    expiredBatchCount: number;
+    expiringSoonBatchCount: number;
+    returnableBatchCount: number;
+  };
+  batches: Array<{
+    stockBatchId: string;
+    medicineId: string;
+    medicineName: string;
+    genericName: string | null;
+    brandName: string | null;
+    form: string | null;
+    strength: string | null;
+    category: string | null;
+    unit: string | null;
+    batchNumber: string;
+    expiryDate: string;
+    quantityOnHand: number;
+    costPrice: number;
+    sellingPrice: number;
+    supplierName: string | null;
+    receivedAt: string;
+    isExpired: boolean;
+    isExpiringSoon: boolean;
+    canReturnToSupplier: boolean;
+    estimatedRetailValue: number;
+    estimatedCostValue: number;
+  }>;
+};
+
+export type InventoryDisposalsResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  metrics: {
+    totalDisposals: number;
+    damagedCount: number;
+    expiredCount: number;
+    returnedCount: number;
+    totalUnitsRemoved: number;
+    totalRetailValueRemoved: number;
+  };
+  disposals: Array<{
+    id: string;
+    reason: "DAMAGE" | "EXPIRED" | "RETURN_TO_SUPPLIER";
+    notes: string | null;
+    quantityRemoved: number;
+    quantityAfter: number;
+    createdAt: string;
+    createdBy: string;
+    medicine: {
+      id: string;
+      name: string;
+    };
+    batch: {
+      id: string;
+      batchNumber: string;
+      expiryDate: string;
+      currentQuantityOnHand: number;
+      supplierName: string | null;
+    };
+    estimatedRetailValueRemoved: number;
+    estimatedCostValueRemoved: number;
+  }>;
+};
+
+export type CreateDisposalResponse = {
+  id: string;
+  reason: "DAMAGE" | "EXPIRED" | "RETURN_TO_SUPPLIER";
+  notes: string | null;
+  quantityRemoved: number;
+  quantityAfter: number;
+  createdAt: string;
+  medicine: {
+    id: string;
+    name: string;
+  };
+  batch: {
+    id: string;
+    batchNumber: string;
+  };
+  supplierName: string | null;
+};
+
 export type CycleCountCatalogResponse = {
   branch: {
     id: string;
