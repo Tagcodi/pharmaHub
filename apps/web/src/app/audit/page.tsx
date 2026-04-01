@@ -8,6 +8,8 @@ import { EmptyStateCard } from "../components/ui/EmptyStateCard";
 import { KpiCard } from "../components/ui/KpiCard";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { SurfaceCard } from "../components/ui/SurfaceCard";
+import { useI18n } from "../i18n/I18nProvider";
+import { formatRelativeTime } from "../i18n/format";
 import {
   TOKEN_KEY,
   fetchJson,
@@ -22,6 +24,8 @@ const FILTERS = ["All", "Inventory", "Sales", "Access", "Users", "Catalog"] as c
 
 export default function AuditPage() {
   const router = useRouter();
+  const { locale } = useI18n();
+  const text = AUDIT_COPY[locale] as (typeof AUDIT_COPY)["en"];
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [logs, setLogs] = useState<AuditLogsResponse | null>(null);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
@@ -83,7 +87,7 @@ export default function AuditPage() {
   }, [filter, logs?.items]);
 
   if (isLoading) {
-    return <AppLoading message="Loading audit feed…" />;
+    return <AppLoading message={text.loadingAuditFeed} />;
   }
 
   if (!session) {
@@ -102,26 +106,26 @@ export default function AuditPage() {
       <div className="mx-auto w-full max-w-[1240px] px-8 py-8">
         <div className="mb-7 grid gap-5 lg:grid-cols-4">
           <KpiCard
-            label="Audit Events"
+            label={text.auditEvents}
             value={String(metrics.totalEvents)}
-            note="Latest branch and system events"
+            note={text.latestEvents}
           />
           <KpiCard
-            label="Stock Adjustments"
+            label={text.stockAdjustments}
             value={String(metrics.stockAdjustments)}
-            note="Manual inventory corrections"
+            note={text.manualCorrections}
           />
           <KpiCard
-            label="Suspected Loss"
+            label={text.suspectedLoss}
             value={String(metrics.suspectedLossEvents)}
             valueColor="#93000a"
-            note="Loss or theft-suspected incidents"
+            note={text.lossIncidents}
           />
           <KpiCard
-            label="Failed Logins"
+            label={text.failedLogins}
             value={String(metrics.failedLoginCount)}
             valueColor="#93000a"
-            note="Rejected sign-in attempts"
+            note={text.rejectedSignIns}
           />
         </div>
 
@@ -135,10 +139,10 @@ export default function AuditPage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-[2rem] font-bold leading-none tracking-[-0.04em] text-on-surface">
-                Audit Log
+                {text.auditLog}
               </h1>
               <p className="mt-2 text-sm text-on-surface-variant">
-                Review access, inventory, sales, and staff events with branch-level accountability.
+                {text.auditDescription}
               </p>
             </div>
 
@@ -155,7 +159,7 @@ export default function AuditPage() {
                       : "bg-surface-low text-on-surface-variant hover:bg-surface",
                   ].join(" ")}
                 >
-                  {item}
+                  {formatAuditCategory(item, text)}
                 </button>
               ))}
             </div>
@@ -175,7 +179,7 @@ export default function AuditPage() {
                           {item.title}
                         </p>
                         <StatusBadge
-                          label={item.category}
+                          label={formatAuditCategory(item.category, text)}
                           tone={
                             item.tone === "danger"
                               ? "danger"
@@ -195,7 +199,7 @@ export default function AuditPage() {
 
                     <div className="shrink-0 text-right">
                       <p className="text-xs font-semibold uppercase tracking-[0.08em] text-outline">
-                        {formatRelativeTime(item.createdAt)}
+                        {formatRelativeTime(item.createdAt, locale)}
                       </p>
                       <p className="mt-2 text-xs text-on-surface-variant">
                         {item.actor}
@@ -209,8 +213,8 @@ export default function AuditPage() {
             <div className="mt-6">
               <EmptyStateCard
                 compact
-                title="No audit activity yet"
-                description="As staff sign in, sell stock, and record adjustments, the audit trail will appear here."
+                title={text.noAuditActivity}
+                description={text.noAuditDescription}
               />
             </div>
           )}
@@ -220,24 +224,101 @@ export default function AuditPage() {
   );
 }
 
-function formatRelativeTime(value: string) {
-  const diff = Date.now() - new Date(value).getTime();
-  const minutes = Math.floor(diff / (1000 * 60));
-
-  if (minutes < 1) {
-    return "Just now";
+function formatAuditCategory(
+  value: (typeof FILTERS)[number] | AuditLogsResponse["items"][number]["category"],
+  text: (typeof AUDIT_COPY)["en"]
+) {
+  if (value === "Inventory") {
+    return text.inventory;
   }
 
-  if (minutes < 60) {
-    return `${minutes}m ago`;
+  if (value === "Sales") {
+    return text.sales;
   }
 
-  const hours = Math.floor(minutes / 60);
-
-  if (hours < 24) {
-    return `${hours}h ago`;
+  if (value === "Access") {
+    return text.access;
   }
 
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  if (value === "Users") {
+    return text.users;
+  }
+
+  if (value === "Catalog") {
+    return text.catalog;
+  }
+
+  return text.all;
 }
+
+const AUDIT_COPY = {
+  en: {
+    loadingAuditFeed: "Loading audit feed…",
+    auditEvents: "Audit Events",
+    latestEvents: "Latest branch and system events",
+    stockAdjustments: "Stock Adjustments",
+    manualCorrections: "Manual inventory corrections",
+    suspectedLoss: "Suspected Loss",
+    lossIncidents: "Loss or theft-suspected incidents",
+    failedLogins: "Failed Logins",
+    rejectedSignIns: "Rejected sign-in attempts",
+    auditLog: "Audit Log",
+    auditDescription:
+      "Review access, inventory, sales, and staff events with branch-level accountability.",
+    all: "All",
+    inventory: "Inventory",
+    sales: "Sales",
+    access: "Access",
+    users: "Users",
+    catalog: "Catalog",
+    noAuditActivity: "No audit activity yet",
+    noAuditDescription:
+      "As staff sign in, sell stock, and record adjustments, the audit trail will appear here.",
+  },
+  am: {
+    loadingAuditFeed: "የኦዲት ፊድ በመጫን ላይ…",
+    auditEvents: "የኦዲት ክስተቶች",
+    latestEvents: "የቅርንጫፍ እና የሲስተም የቅርብ ክስተቶች",
+    stockAdjustments: "የእቃ ማስተካከያዎች",
+    manualCorrections: "በእጅ የተደረጉ የእቃ ማስተካከያዎች",
+    suspectedLoss: "የተጠረጠረ ጉድለት",
+    lossIncidents: "የጉድለት ወይም የስርቆት ጥርጣሬ ክስተቶች",
+    failedLogins: "ያልተሳኩ መግቢያዎች",
+    rejectedSignIns: "የተከለከሉ የመግቢያ ሙከራዎች",
+    auditLog: "የኦዲት መዝገብ",
+    auditDescription:
+      "የመዳረሻ፣ የእቃ፣ የሽያጭ እና የሰራተኛ ክስተቶችን ከቅርንጫፍ ደረጃ ተጠያቂነት ጋር ይገምግሙ።",
+    all: "ሁሉም",
+    inventory: "እቃ",
+    sales: "ሽያጭ",
+    access: "መዳረሻ",
+    users: "ተጠቃሚዎች",
+    catalog: "ካታሎግ",
+    noAuditActivity: "እስካሁን የኦዲት እንቅስቃሴ የለም",
+    noAuditDescription:
+      "ሰራተኞች ሲገቡ፣ እቃ ሲሸጡ እና ማስተካከያ ሲመዘግቡ የኦዲት መዝገቡ እዚህ ይታያል።",
+  },
+  om: {
+    loadingAuditFeed: "Feediin odiitii fe'amaa jira…",
+    auditEvents: "Taateewwan Odiitii",
+    latestEvents: "Taateewwan damee fi sirnaa yeroo dhiyoo",
+    stockAdjustments: "Sirreeffamoota Kuusaa",
+    manualCorrections: "Sirreeffamoota kuusaa harkaatiin taasifaman",
+    suspectedLoss: "Badiinsa Shakkame",
+    lossIncidents: "Taateewwan badiinsaa yookaan hatamuu shakkame",
+    failedLogins: "Seensawwan Kufan",
+    rejectedSignIns: "Yaalii seensaa didaman",
+    auditLog: "Galmee Odiitii",
+    auditDescription:
+      "Taateewwan seensaa, kuusaa, gurgurtaa fi hojjettootaa itti gaafatamummaa damee waliin ilaali.",
+    all: "Hunda",
+    inventory: "Kuusaa",
+    sales: "Gurgurtaa",
+    access: "Seensa",
+    users: "Fayyadamtoota",
+    catalog: "Kaataalogii",
+    noAuditActivity: "Ammaaf hojii odiitii hin jiru",
+    noAuditDescription:
+      "Yeroo hojjettoonni seenan, kuusaa gurguran, fi sirreeffama galmeessan galmeen odiitii asitti mul'ata.",
+  },
+} as const;

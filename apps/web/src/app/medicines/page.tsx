@@ -9,6 +9,12 @@ import { EmptyStateCard } from "../components/ui/EmptyStateCard";
 import { KpiCard } from "../components/ui/KpiCard";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { SurfaceCard } from "../components/ui/SurfaceCard";
+import { useI18n } from "../i18n/I18nProvider";
+import {
+  formatCurrency,
+  formatDate,
+  formatNumber,
+} from "../i18n/format";
 import {
   fetchJson,
   formatError,
@@ -20,9 +26,18 @@ import {
 } from "../lib/api";
 
 const PAGE_SIZE = 12;
+const STATUS_FILTERS = [
+  "All",
+  "Low Stock",
+  "Near Expiry",
+  "Stable",
+  "Inactive",
+] as const;
 
 export default function MedicinesPage() {
   const router = useRouter();
+  const { locale } = useI18n();
+  const text = MEDICINES_COPY[locale] as (typeof MEDICINES_COPY)["en"];
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [inventory, setInventory] = useState<InventorySummaryResponse | null>(null);
   const [search, setSearch] = useState("");
@@ -81,7 +96,7 @@ export default function MedicinesPage() {
   }
 
   if (isLoading) {
-    return <AppLoading message="Loading inventory…" />;
+    return <AppLoading message={text.loadingInventory} />;
   }
 
   if (!session) {
@@ -141,6 +156,7 @@ export default function MedicinesPage() {
     (safePage - 1) * PAGE_SIZE,
     safePage * PAGE_SIZE
   );
+  const branchName = inventory?.branch.name ?? session.branch?.name ?? text.defaultBranch;
 
   return (
     <AppShell session={session}>
@@ -148,11 +164,10 @@ export default function MedicinesPage() {
         <div className="mb-8 flex items-start justify-between gap-6">
           <div>
             <h1 className="text-[2.25rem] font-bold leading-none tracking-[-0.04em] text-on-surface">
-              Inventory Intelligence
+              {text.inventoryIntelligence}
             </h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-on-surface-variant">
-              Track live stock by batch, expiry window, and retail value for{" "}
-              {inventory?.branch.name ?? session.branch?.name ?? "your main branch"}.
+              {text.inventoryDescription.replace("{branch}", branchName)}
             </p>
           </div>
 
@@ -169,7 +184,7 @@ export default function MedicinesPage() {
                   strokeLinecap="round"
                 />
               </svg>
-              Restock Orders
+              {text.restockOrders}
             </Link>
 
             <Link
@@ -184,7 +199,7 @@ export default function MedicinesPage() {
                   strokeLinecap="round"
                 />
               </svg>
-              Stock Count
+              {text.stockCount}
             </Link>
 
             <Link
@@ -199,7 +214,7 @@ export default function MedicinesPage() {
                   strokeLinecap="round"
                 />
               </svg>
-              Adjust Stock
+              {text.adjustStock}
             </Link>
 
             <Link
@@ -215,33 +230,33 @@ export default function MedicinesPage() {
                   strokeLinecap="round"
                 />
               </svg>
-              Receive Stock
+              {text.receiveStock}
             </Link>
           </div>
         </div>
 
         <div className="mb-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <KpiCard
-            label="Total Stock Value"
-            value={`ETB ${formatNumber(totals.totalStockValue)}`}
-            note={`${totals.totalUnitsOnHand.toLocaleString("en-US")} units on hand`}
+            label={text.totalStockValue}
+            value={`ETB ${formatCurrency(totals.totalStockValue, locale)}`}
+            note={`${formatNumber(totals.totalUnitsOnHand, locale)} ${text.unitsOnHand}`}
           />
           <KpiCard
-            label="Medicines At Risk"
+            label={text.medicinesAtRisk}
             value={String(totals.atRiskCount)}
             valueColor="#93000a"
-            note={`${totals.lowStockCount} low stock / ${totals.nearExpiryBatchCount} expiring batches`}
+            note={`${formatNumber(totals.lowStockCount, locale)} ${text.lowStockLower} / ${formatNumber(totals.nearExpiryBatchCount, locale)} ${text.expiringBatches}`}
           />
           <KpiCard
-            label="Near Expiry (30d)"
+            label={text.nearExpiryThirtyDays}
             value={String(totals.nearExpiryBatchCount)}
             valueColor="#6e3900"
-            note="Batches requiring close review"
+            note={text.closeReview}
           />
           <KpiCard
-            label="Active Batches"
+            label={text.activeBatches}
             value={String(totals.activeBatchCount)}
-            note={`${totals.registeredMedicineCount} catalog medicines`}
+            note={`${formatNumber(totals.registeredMedicineCount, locale)} ${text.catalogMedicines}`}
           />
         </div>
 
@@ -268,7 +283,7 @@ export default function MedicinesPage() {
               </svg>
               <input
                 type="search"
-                placeholder="Search medicines, generic names, or batch numbers…"
+                placeholder={text.searchPlaceholder}
                 value={search}
                 onChange={(event) => {
                   setSearch(event.target.value);
@@ -279,7 +294,7 @@ export default function MedicinesPage() {
             </div>
 
             <FilterChip
-              label={`Category: ${categoryFilter}`}
+              label={`${text.category}: ${categoryFilter === "All" ? text.all : categoryFilter}`}
               active={categoryFilter !== "All"}
               onClick={() => {
                 const nextIndex =
@@ -300,19 +315,12 @@ export default function MedicinesPage() {
             />
 
             <FilterChip
-              label={`Status: ${statusFilter}`}
+              label={`${text.status}: ${getStatusLabel(statusFilter, text)}`}
               active={statusFilter !== "All"}
               onClick={() => {
-                const options = [
-                  "All",
-                  "Low Stock",
-                  "Near Expiry",
-                  "Stable",
-                  "Inactive",
-                ];
                 const nextIndex =
-                  (options.indexOf(statusFilter) + 1) % options.length;
-                setStatusFilter(options[nextIndex] ?? "All");
+                  (STATUS_FILTERS.indexOf(statusFilter as (typeof STATUS_FILTERS)[number]) + 1) % STATUS_FILTERS.length;
+                setStatusFilter(STATUS_FILTERS[nextIndex] ?? "All");
                 setPage(1);
               }}
               icon={
@@ -329,14 +337,14 @@ export default function MedicinesPage() {
             />
 
             <span className="ml-auto text-xs text-on-surface-variant">
-              Showing{" "}
+              {text.showing}{" "}
               {filteredMedicines.length === 0
-                ? "0"
+                ? formatNumber(0, locale)
                 : `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(
                     safePage * PAGE_SIZE,
                     filteredMedicines.length
                   )}`}{" "}
-              of {filteredMedicines.length} items
+              {text.of} {formatNumber(filteredMedicines.length, locale)} {text.items}
             </span>
           </div>
 
@@ -360,8 +368,8 @@ export default function MedicinesPage() {
                   <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
                 </svg>
               }
-              title="No medicines in inventory yet"
-              description="Receive your first stock batch to create a live inventory record with expiry and quantity tracking."
+              title={text.noMedicinesTitle}
+              description={text.noMedicinesDescription}
             />
           ) : null}
 
@@ -380,8 +388,8 @@ export default function MedicinesPage() {
                   <path d="m21 21-4.35-4.35" strokeLinecap="round" />
                 </svg>
               }
-              title={`No results for "${search}"`}
-              description="Try a different medicine name, generic, batch number, or category."
+              title={text.noResultsTitle.replace("{query}", search)}
+              description={text.noResultsDescription}
             />
           ) : null}
 
@@ -393,14 +401,14 @@ export default function MedicinesPage() {
                     className="text-[0.65rem] font-bold uppercase tracking-[0.08em] text-outline"
                     style={{ borderBottom: "1px solid rgba(0,66,83,0.06)" }}
                   >
-                    <th className="px-6 py-3 font-bold">Brand Name</th>
-                    <th className="px-4 py-3 font-bold">Generic Name</th>
-                    <th className="px-4 py-3 font-bold">Latest Batch</th>
-                    <th className="px-4 py-3 font-bold">Next Expiry</th>
-                    <th className="px-4 py-3 text-right font-bold">Stock</th>
-                    <th className="px-4 py-3 text-right font-bold">Price (ETB)</th>
-                    <th className="px-4 py-3 font-bold">Status</th>
-                    <th className="px-4 py-3 font-bold">Actions</th>
+                    <th className="px-6 py-3 font-bold">{text.brandName}</th>
+                    <th className="px-4 py-3 font-bold">{text.genericName}</th>
+                    <th className="px-4 py-3 font-bold">{text.latestBatch}</th>
+                    <th className="px-4 py-3 font-bold">{text.nextExpiry}</th>
+                    <th className="px-4 py-3 text-right font-bold">{text.stock}</th>
+                    <th className="px-4 py-3 text-right font-bold">{text.priceEtb}</th>
+                    <th className="px-4 py-3 font-bold">{text.status}</th>
+                    <th className="px-4 py-3 font-bold">{text.actions}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -410,6 +418,8 @@ export default function MedicinesPage() {
                       medicine={medicine}
                       striped={index % 2 !== 0}
                       canEdit={session.user.role !== "CASHIER"}
+                      locale={locale}
+                      text={text}
                     />
                   ))}
                 </tbody>
@@ -511,10 +521,14 @@ function MedicineRow({
   medicine,
   striped,
   canEdit,
+  locale,
+  text,
 }: {
   medicine: InventoryMedicineSummary;
   striped: boolean;
   canEdit: boolean;
+  locale: "en" | "am" | "om";
+  text: (typeof MEDICINES_COPY)["en"];
 }) {
   const healthTone = medicine.isLowStock || medicine.isExpiringSoon;
 
@@ -530,12 +544,12 @@ function MedicineRow({
       <td className="px-6 py-4 align-top">
         <p className="text-sm font-semibold text-on-surface">{medicine.name}</p>
         <p className="mt-0.5 text-xs text-on-surface-variant">
-          {[medicine.form, medicine.strength].filter(Boolean).join(" • ") || "Catalog item"}
+          {[medicine.form, medicine.strength].filter(Boolean).join(" • ") || text.catalogItem}
         </p>
       </td>
 
       <td className="px-4 py-4 align-top text-sm text-on-surface-variant">
-        {medicine.genericName ?? "—"}
+        {medicine.genericName ?? text.notAvailable}
       </td>
 
       <td className="px-4 py-4 align-top">
@@ -544,47 +558,47 @@ function MedicineRow({
             {medicine.latestBatchNumber}
           </code>
         ) : (
-          <span className="text-sm text-outline/50">—</span>
+          <span className="text-sm text-outline/50">{text.notAvailable}</span>
         )}
       </td>
 
       <td className="px-4 py-4 align-top">
         {medicine.nextExpiryDate ? (
           <>
-            <p className="text-sm text-on-surface">{formatDate(medicine.nextExpiryDate)}</p>
+            <p className="text-sm text-on-surface">{formatDate(medicine.nextExpiryDate, locale)}</p>
             <p className="mt-0.5 text-xs text-on-surface-variant">
-              {describeExpiry(medicine.nextExpiryDate)}
+              {describeExpiry(medicine.nextExpiryDate, locale, text)}
             </p>
           </>
         ) : (
-          <span className="text-sm text-outline/50">—</span>
+          <span className="text-sm text-outline/50">{text.notAvailable}</span>
         )}
       </td>
 
       <td className="px-4 py-4 text-right align-top">
         <p className="text-sm font-semibold text-on-surface">
-          {medicine.totalQuantityOnHand.toLocaleString("en-US")}
+          {formatNumber(medicine.totalQuantityOnHand, locale)}
         </p>
         <p className="mt-0.5 text-xs text-on-surface-variant">
-          {medicine.activeBatchCount} active batches
+          {formatNumber(medicine.activeBatchCount, locale)} {text.activeBatchesLower}
         </p>
       </td>
 
       <td className="px-4 py-4 text-right align-top">
         <p className="text-xs text-on-surface-variant">
           {medicine.latestCostPrice !== null
-            ? `${formatNumber(medicine.latestCostPrice)} buy`
-            : "— buy"}
+            ? `${formatCurrency(medicine.latestCostPrice, locale)} ${text.buy}`
+            : `${text.notAvailable} ${text.buy}`}
         </p>
         <p className="text-xs text-on-surface-variant">
           {medicine.latestSellingPrice !== null
-            ? `${formatNumber(medicine.latestSellingPrice)} sell`
-            : "— sell"}
+            ? `${formatCurrency(medicine.latestSellingPrice, locale)} ${text.sell}`
+            : `${text.notAvailable} ${text.sell}`}
         </p>
       </td>
 
       <td className="px-4 py-4 align-top">
-        <StatusChip medicine={medicine} />
+        <StatusChip medicine={medicine} text={text} />
       </td>
 
       <td className="px-4 py-4 align-top">
@@ -592,7 +606,7 @@ function MedicineRow({
           <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
             <Link
               href={`/medicines/adjust?medicineId=${medicine.id}`}
-              title="Receive stock"
+              title={text.receiveStock}
               className="rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-low hover:text-on-surface"
             >
               <svg
@@ -609,7 +623,7 @@ function MedicineRow({
             </Link>
             <Link
               href={`/medicines/adjustments?medicineId=${medicine.id}`}
-              title="Adjust stock"
+              title={text.adjustStock}
               className="rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-low hover:text-on-surface"
             >
               <svg
@@ -626,7 +640,7 @@ function MedicineRow({
             </Link>
             <Link
               href={`/medicines/counts?medicineId=${medicine.id}`}
-              title="Run stock count"
+              title={text.runStockCount}
               className="rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-low hover:text-on-surface"
             >
               <svg
@@ -648,24 +662,30 @@ function MedicineRow({
   );
 }
 
-function StatusChip({ medicine }: { medicine: InventoryMedicineSummary }) {
-  let label = "Stable";
+function StatusChip({
+  medicine,
+  text,
+}: {
+  medicine: InventoryMedicineSummary;
+  text: (typeof MEDICINES_COPY)["en"];
+}) {
+  let label: string = text.stable;
   let tone: "success" | "warning" | "danger" | "neutral" = "success";
 
   if (!medicine.isActive) {
-    label = "Inactive";
+    label = text.inactive;
     tone = "danger";
   } else if (medicine.totalQuantityOnHand === 0) {
-    label = "Out of Stock";
+    label = text.outOfStock;
     tone = "danger";
   } else if (medicine.isLowStock && medicine.isExpiringSoon) {
-    label = "Low + Expiry";
+    label = text.lowAndExpiry;
     tone = "warning";
   } else if (medicine.isLowStock) {
-    label = "Low Stock";
+    label = text.lowStock;
     tone = "danger";
   } else if (medicine.isExpiringSoon) {
-    label = "Near Expiry";
+    label = text.nearExpiry;
     tone = "warning";
   }
 
@@ -700,37 +720,220 @@ function PageButton({
   );
 }
 
-function formatNumber(value: number) {
-  return value.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function describeExpiry(value: string) {
+function describeExpiry(
+  value: string,
+  locale: "en" | "am" | "om",
+  text: (typeof MEDICINES_COPY)["en"]
+) {
   const diffInDays = Math.ceil(
     (new Date(value).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
   );
 
   if (diffInDays < 0) {
-    return "Already expired";
+    return text.alreadyExpired;
   }
 
   if (diffInDays === 0) {
-    return "Expires today";
+    return text.expiresToday;
   }
 
   if (diffInDays === 1) {
-    return "1 day remaining";
+    return text.oneDayRemaining;
   }
 
-  return `${diffInDays} days remaining`;
+  return text.daysRemaining.replace("{count}", formatNumber(diffInDays, locale));
 }
+
+function getStatusLabel(
+  value: string,
+  text: (typeof MEDICINES_COPY)["en"]
+) {
+  if (value === "Low Stock") {
+    return text.lowStock;
+  }
+
+  if (value === "Near Expiry") {
+    return text.nearExpiry;
+  }
+
+  if (value === "Stable") {
+    return text.stable;
+  }
+
+  if (value === "Inactive") {
+    return text.inactive;
+  }
+
+  return text.all;
+}
+
+const MEDICINES_COPY = {
+  en: {
+    loadingInventory: "Loading inventory…",
+    defaultBranch: "your main branch",
+    inventoryIntelligence: "Inventory Intelligence",
+    inventoryDescription:
+      "Track live stock by batch, expiry window, and retail value for {branch}.",
+    restockOrders: "Restock Orders",
+    stockCount: "Stock Count",
+    adjustStock: "Adjust Stock",
+    receiveStock: "Receive Stock",
+    totalStockValue: "Total Stock Value",
+    unitsOnHand: "units on hand",
+    medicinesAtRisk: "Medicines At Risk",
+    lowStockLower: "low stock",
+    expiringBatches: "expiring batches",
+    nearExpiryThirtyDays: "Near Expiry (30d)",
+    closeReview: "Batches requiring close review",
+    activeBatches: "Active Batches",
+    catalogMedicines: "catalog medicines",
+    searchPlaceholder: "Search medicines, generic names, or batch numbers…",
+    category: "Category",
+    status: "Status",
+    all: "All",
+    showing: "Showing",
+    of: "of",
+    items: "items",
+    noMedicinesTitle: "No medicines in inventory yet",
+    noMedicinesDescription:
+      "Receive your first stock batch to create a live inventory record with expiry and quantity tracking.",
+    noResultsTitle: "No results for \"{query}\"",
+    noResultsDescription:
+      "Try a different medicine name, generic, batch number, or category.",
+    brandName: "Brand Name",
+    genericName: "Generic Name",
+    latestBatch: "Latest Batch",
+    nextExpiry: "Next Expiry",
+    stock: "Stock",
+    priceEtb: "Price (ETB)",
+    actions: "Actions",
+    catalogItem: "Catalog item",
+    notAvailable: "—",
+    activeBatchesLower: "active batches",
+    buy: "buy",
+    sell: "sell",
+    stable: "Stable",
+    inactive: "Inactive",
+    outOfStock: "Out of Stock",
+    lowAndExpiry: "Low + Expiry",
+    lowStock: "Low Stock",
+    nearExpiry: "Near Expiry",
+    runStockCount: "Run stock count",
+    alreadyExpired: "Already expired",
+    expiresToday: "Expires today",
+    oneDayRemaining: "1 day remaining",
+    daysRemaining: "{count} days remaining",
+  },
+  am: {
+    loadingInventory: "እቃ በመጫን ላይ…",
+    defaultBranch: "ዋና ቅርንጫፍዎ",
+    inventoryIntelligence: "የእቃ ቁጥጥር ማዕከል",
+    inventoryDescription:
+      "ለ {branch} ቀጥታ እቃን በባች፣ በማብቂያ መስኮት እና በመሸጫ ዋጋ ይከታተሉ።",
+    restockOrders: "የእንደገና ማስገቢያ ትዕዛዞች",
+    stockCount: "የእቃ ቆጠራ",
+    adjustStock: "እቃ አስተካክል",
+    receiveStock: "እቃ ተቀበል",
+    totalStockValue: "ጠቅላላ የእቃ ዋጋ",
+    unitsOnHand: "በእጅ ያሉ ዩኒቶች",
+    medicinesAtRisk: "አደጋ ላይ ያሉ መድሃኒቶች",
+    lowStockLower: "ዝቅተኛ እቃ",
+    expiringBatches: "የሚያልቁ ባቾች",
+    nearExpiryThirtyDays: "በቅርብ ማብቂያ (30ቀ)",
+    closeReview: "በቅርብ ክትትል የሚፈልጉ ባቾች",
+    activeBatches: "ንቁ ባቾች",
+    catalogMedicines: "የካታሎግ መድሃኒቶች",
+    searchPlaceholder: "መድሃኒቶችን፣ ጄኔሪክ ስሞችን ወይም ባች ቁጥሮችን ይፈልጉ…",
+    category: "ምድብ",
+    status: "ሁኔታ",
+    all: "ሁሉም",
+    showing: "የሚታዩት",
+    of: "ከ",
+    items: "እቃዎች",
+    noMedicinesTitle: "በእቃ ውስጥ መድሃኒት እስካሁን የለም",
+    noMedicinesDescription:
+      "በማብቂያ እና በብዛት ክትትል ያለው ቀጥታ የእቃ መዝገብ ለመፍጠር የመጀመሪያውን ባች ይቀበሉ።",
+    noResultsTitle: "\"{query}\" ለሚለው ውጤት አልተገኘም",
+    noResultsDescription:
+      "ሌላ የመድሃኒት ስም፣ ጄኔሪክ፣ ባች ቁጥር ወይም ምድብ ይሞክሩ።",
+    brandName: "የብራንድ ስም",
+    genericName: "ጄኔሪክ ስም",
+    latestBatch: "የቅርብ ባች",
+    nextExpiry: "ቀጣይ ማብቂያ",
+    stock: "እቃ",
+    priceEtb: "ዋጋ (ETB)",
+    actions: "እርምጃዎች",
+    catalogItem: "የካታሎግ እቃ",
+    notAvailable: "—",
+    activeBatchesLower: "ንቁ ባቾች",
+    buy: "ግዢ",
+    sell: "ሽያጭ",
+    stable: "የተረጋጋ",
+    inactive: "ንቁ ያልሆነ",
+    outOfStock: "እቃ የለም",
+    lowAndExpiry: "ዝቅተኛ + ማብቂያ",
+    lowStock: "ዝቅተኛ እቃ",
+    nearExpiry: "በቅርብ ማብቂያ",
+    runStockCount: "የእቃ ቆጠራ አሂድ",
+    alreadyExpired: "አስቀድሞ አልቋል",
+    expiresToday: "ዛሬ ያልቃል",
+    oneDayRemaining: "1 ቀን ቀርቷል",
+    daysRemaining: "{count} ቀናት ቀርተዋል",
+  },
+  om: {
+    loadingInventory: "Kuusaan fe'amaa jira…",
+    defaultBranch: "damee keessan isa guddaa",
+    inventoryIntelligence: "Hubannoo Kuusaa",
+    inventoryDescription:
+      "Kuusaa yeroo ammaa baachiidhaan, yeroo xumuramuun, fi gatii gurgurtaatiin {branch}f hordofi.",
+    restockOrders: "Ajajoota Deebisanii Guutuu",
+    stockCount: "Lakkoofsa Kuusaa",
+    adjustStock: "Kuusaa Sirreessi",
+    receiveStock: "Kuusaa Fudhadhu",
+    totalStockValue: "Gatii Kuusaa Waliigalaa",
+    unitsOnHand: "yuunitii harkatti jiran",
+    medicinesAtRisk: "Qorichoota Balaa Keessa Jiran",
+    lowStockLower: "kuusaa gadi aanaa",
+    expiringBatches: "baachiiwwan xumuramaa jiran",
+    nearExpiryThirtyDays: "Xumuramuu Dhiyaataa (30g)",
+    closeReview: "Baachiiwwan ilaalcha dhihoo barbaadan",
+    activeBatches: "Baachiiwwan Hojii Irra Jiran",
+    catalogMedicines: "qorichoota kaataalogii",
+    searchPlaceholder: "Qorichoota, maqaa generic, yookaan lakkoofsa baachii barbaadi…",
+    category: "Gosa",
+    status: "Haala",
+    all: "Hunda",
+    showing: "Kan agarsiifamu",
+    of: " keessaa",
+    items: "meeshaalee",
+    noMedicinesTitle: "Ammaaf kuusaa keessatti qorichi hin jiru",
+    noMedicinesDescription:
+      "Galmee kuusaa yeroo ammaa xumuramuu fi baay'inaan hordofu uumuuf baachii kuusaa keessan isa jalqabaa fudhadhaa.",
+    noResultsTitle: "\"{query}\"f bu'aan hin argamne",
+    noResultsDescription:
+      "Maqaa qorichaa, generic, lakkoofsa baachii yookaan gosa biraa yaali.",
+    brandName: "Maqaa Biraandii",
+    genericName: "Maqaa Generic",
+    latestBatch: "Baachii Haaraa",
+    nextExpiry: "Xumuramuu Itti Aanu",
+    stock: "Kuusaa",
+    priceEtb: "Gatii (ETB)",
+    actions: "Tarkaanfiiwwan",
+    catalogItem: "Meeshaa kaataalogii",
+    notAvailable: "—",
+    activeBatchesLower: "baachiiwwan hojii irra jiran",
+    buy: "bitaa",
+    sell: "gurguri",
+    stable: "Tasgabbaa'aa",
+    inactive: "Hojii ala",
+    outOfStock: "Kuusaan dhumeera",
+    lowAndExpiry: "Gadi aanaa + xumuramuu",
+    lowStock: "Kuusaa Gadi Aanaa",
+    nearExpiry: "Xumuramuu Dhiyaataa",
+    runStockCount: "Lakkoofsa kuusaa hojjechiisi",
+    alreadyExpired: "Duraan xumurameera",
+    expiresToday: "Har'a xumura",
+    oneDayRemaining: "Guyyaan 1 hafeera",
+    daysRemaining: "Guyyoonni {count} hafaniiru",
+  },
+} as const;

@@ -8,6 +8,12 @@ import { EmptyStateCard } from "../../components/ui/EmptyStateCard";
 import { KpiCard } from "../../components/ui/KpiCard";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { SurfaceCard } from "../../components/ui/SurfaceCard";
+import { useI18n } from "../../i18n/I18nProvider";
+import {
+  formatCurrency,
+  formatDate,
+  formatRelativeTime,
+} from "../../i18n/format";
 import {
   TOKEN_KEY,
   fetchJson,
@@ -21,22 +27,11 @@ import {
   type SessionResponse,
 } from "../../lib/api";
 
-const REASON_OPTIONS: Array<{
-  value: AdjustmentReason;
-  label: string;
-  hint: string;
-}> = [
-  { value: "COUNT_CORRECTION", label: "Count correction", hint: "Use when physical count differs from the system." },
-  { value: "THEFT_SUSPECTED", label: "Theft suspected", hint: "Record unexplained loss that needs review." },
-  { value: "LOST", label: "Lost stock", hint: "Record missing stock that cannot be accounted for." },
-  { value: "DAMAGE", label: "Damaged", hint: "Remove unusable stock from the sellable pool." },
-  { value: "EXPIRED", label: "Expired", hint: "Retire batches that can no longer be dispensed." },
-  { value: "RETURN_TO_SUPPLIER", label: "Return to supplier", hint: "Track stock sent back upstream." },
-  { value: "OTHER", label: "Other", hint: "Use only if none of the standard reasons fit." },
-] as const;
-
 export default function StockAdjustmentsPage() {
   const router = useRouter();
+  const { locale } = useI18n();
+  const text = ADJUSTMENTS_COPY[locale] as (typeof ADJUSTMENTS_COPY)["en"];
+  const reasonOptions = getReasonOptions(text);
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [catalog, setCatalog] = useState<AdjustmentCatalogResponse | null>(null);
   const [adjustments, setAdjustments] = useState<InventoryAdjustmentsResponse | null>(
@@ -201,12 +196,12 @@ export default function StockAdjustmentsPage() {
     const parsedQuantity = Number(quantityDelta);
 
     if (!selectedBatchId) {
-      setError("Select a batch before recording an adjustment.");
+      setError(text.selectBatchBeforeAdjustment);
       return;
     }
 
     if (!Number.isInteger(parsedQuantity) || parsedQuantity === 0) {
-      setError("Enter a whole number adjustment, such as -2 or 3.");
+      setError(text.enterWholeNumberAdjustment);
       return;
     }
 
@@ -226,9 +221,10 @@ export default function StockAdjustmentsPage() {
       });
 
       setSuccessMsg(
-        `${result.medicine.name} batch ${result.batch.batchNumber} adjusted by ${formatSignedNumber(
-          result.quantityDelta
-        )} units.`
+        text.adjustmentSavedMessage
+          .replace("{medicine}", result.medicine.name)
+          .replace("{batch}", result.batch.batchNumber)
+          .replace("{delta}", formatSignedNumber(result.quantityDelta))
       );
       setNotes("");
       setQuantityDelta("-1");
@@ -242,7 +238,7 @@ export default function StockAdjustmentsPage() {
   }
 
   if (isLoading) {
-    return <AppLoading message="Loading stock adjustments…" />;
+    return <AppLoading message={text.loadingStockAdjustments} />;
   }
 
   if (!session) {
@@ -257,34 +253,34 @@ export default function StockAdjustmentsPage() {
     netUnitsDelta: 0,
   };
 
-  const selectedReason = REASON_OPTIONS.find((option) => option.value === reason);
+  const selectedReason = reasonOptions.find((option) => option.value === reason);
 
   return (
     <AppShell session={session}>
       <div className="mx-auto w-full max-w-[1320px] px-8 py-8">
         <div className="mb-7 grid gap-5 lg:grid-cols-4">
           <KpiCard
-            label="Adjustment Events"
+            label={text.adjustmentEvents}
             value={String(metrics.totalAdjustments)}
-            note="Recent adjustment records"
+            note={text.recentAdjustmentRecords}
           />
           <KpiCard
-            label="Negative Moves"
+            label={text.negativeMoves}
             value={String(metrics.negativeAdjustments)}
             valueColor="#93000a"
-            note="Losses, expiry, damage, and returns"
+            note={text.lossesExpiryDamageReturns}
           />
           <KpiCard
-            label="Suspected Loss"
+            label={text.suspectedLoss}
             value={String(metrics.suspectedLossCount)}
             valueColor="#93000a"
-            note="Lost or theft-suspected incidents"
+            note={text.lostOrTheftSuspected}
           />
           <KpiCard
-            label="Net Units Delta"
+            label={text.netUnitsDelta}
             value={formatSignedNumber(metrics.netUnitsDelta)}
             valueColor={metrics.netUnitsDelta < 0 ? "#93000a" : "#004253"}
-            note={`${metrics.positiveAdjustments} positive corrections`}
+            note={`${metrics.positiveAdjustments} ${text.positiveCorrections}`}
           />
         </div>
 
@@ -308,10 +304,10 @@ export default function StockAdjustmentsPage() {
             >
               <div>
                 <h1 className="text-[2rem] font-bold leading-none tracking-[-0.04em] text-on-surface">
-                  Stock Adjustments
+                  {text.stockAdjustments}
                 </h1>
                 <p className="mt-2 text-sm text-on-surface-variant">
-                  Record losses, corrections, expiry write-offs, and supplier returns with a reason.
+                  {text.stockAdjustmentsDescription}
                 </p>
               </div>
 
@@ -333,7 +329,7 @@ export default function StockAdjustmentsPage() {
                 </svg>
                 <input
                   type="search"
-                  placeholder="Search medicines or batch numbers…"
+                  placeholder={text.searchPlaceholder}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   className="h-10 w-full rounded-lg bg-surface-low pl-9 pr-4 text-sm text-on-surface placeholder:text-outline/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -345,8 +341,8 @@ export default function StockAdjustmentsPage() {
               <div className="p-6">
                 <EmptyStateCard
                   compact
-                  title="No stocked medicines available"
-                  description="Receive stock first so there are active batches available to adjust."
+                  title={text.noStockedMedicines}
+                  description={text.noStockedMedicinesDescription}
                 />
               </div>
             ) : (
@@ -379,15 +375,15 @@ export default function StockAdjustmentsPage() {
                           <p className="mt-1 text-xs text-on-surface-variant">
                             {[medicine.genericName, medicine.form, medicine.strength]
                               .filter(Boolean)
-                              .join(" • ") || "Catalog medicine"}
+                              .join(" • ") || text.catalogMedicine}
                           </p>
                         </div>
 
                         <div className="flex items-center gap-2">
                           {medicine.isLowStock ? (
-                            <StatusBadge label="Low stock" tone="danger" />
+                            <StatusBadge label={text.lowStock} tone="danger" />
                           ) : (
-                            <StatusBadge label="Stable" tone="success" />
+                            <StatusBadge label={text.stable} tone="success" />
                           )}
                         </div>
                       </button>
@@ -413,20 +409,20 @@ export default function StockAdjustmentsPage() {
                             >
                               <div>
                                 <p className="text-sm font-semibold text-on-surface">
-                                  Batch {batch.batchNumber}
+                                  {text.batch} {batch.batchNumber}
                                 </p>
                                 <p className="mt-1 text-xs text-on-surface-variant">
-                                  Expires {formatDate(batch.expiryDate)}
+                                  {text.expires} {formatDate(batch.expiryDate, locale)}
                                   {batch.supplierName ? ` • ${batch.supplierName}` : ""}
                                 </p>
                               </div>
 
                               <div className="text-right">
                                 <p className="text-sm font-semibold text-on-surface">
-                                  {batch.quantityOnHand.toLocaleString("en-US")} units
+                                  {batch.quantityOnHand.toLocaleString()} {text.units}
                                 </p>
                                 <p className="mt-1 text-xs text-on-surface-variant">
-                                  ETB {formatCurrency(batch.sellingPrice)} sell
+                                  ETB {formatCurrency(batch.sellingPrice, locale)} {text.sell}
                                 </p>
                               </div>
                             </button>
@@ -443,9 +439,9 @@ export default function StockAdjustmentsPage() {
           <div className="space-y-6">
             <SurfaceCard className="p-6">
               <div className="mb-5">
-                <h2 className="text-[1rem] font-bold text-on-surface">Adjustment Form</h2>
+                <h2 className="text-[1rem] font-bold text-on-surface">{text.adjustmentForm}</h2>
                 <p className="mt-1 text-sm text-on-surface-variant">
-                  Every change writes an adjustment record, stock movement, and audit event.
+                  {text.adjustmentFormDescription}
                 </p>
               </div>
 
@@ -458,32 +454,32 @@ export default function StockAdjustmentsPage() {
                           {selectedMedicine.name}
                         </p>
                         <p className="mt-1 text-xs text-on-surface-variant">
-                          Batch {selectedBatch.batchNumber} • Expires{" "}
-                          {formatDate(selectedBatch.expiryDate)}
+                          {text.batch} {selectedBatch.batchNumber} • {text.expires}{" "}
+                          {formatDate(selectedBatch.expiryDate, locale)}
                         </p>
                       </div>
 
                       {selectedBatch.isExpiringSoon ? (
-                        <StatusBadge label="Near expiry" tone="warning" />
+                        <StatusBadge label={text.nearExpiry} tone="warning" />
                       ) : (
-                        <StatusBadge label="Available" tone="success" />
+                        <StatusBadge label={text.available} tone="success" />
                       )}
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                       <InfoPair
-                        label="Current quantity"
-                        value={`${selectedBatch.quantityOnHand.toLocaleString("en-US")} units`}
+                        label={text.currentQuantity}
+                        value={`${selectedBatch.quantityOnHand.toLocaleString()} ${text.units}`}
                       />
                       <InfoPair
-                        label="Selling price"
-                        value={`ETB ${formatCurrency(selectedBatch.sellingPrice)}`}
+                        label={text.sellingPrice}
+                        value={`ETB ${formatCurrency(selectedBatch.sellingPrice, locale)}`}
                       />
                     </div>
                   </div>
 
                   <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-                    <Field label="Quantity delta">
+                    <Field label={text.quantityDelta}>
                       <input
                         value={quantityDelta}
                         onChange={(event) => setQuantityDelta(event.target.value)}
@@ -492,7 +488,7 @@ export default function StockAdjustmentsPage() {
                       />
                     </Field>
 
-                    <Field label="Reason">
+                    <Field label={text.reason}>
                       <select
                         value={reason}
                         onChange={(event) =>
@@ -500,7 +496,7 @@ export default function StockAdjustmentsPage() {
                         }
                         className="h-11 w-full rounded-lg border border-outline/10 bg-surface-low px-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
                       >
-                        {REASON_OPTIONS.map((option) => (
+                        {reasonOptions.map((option) => (
                           <option key={option.value} value={option.value}>
                             {option.label}
                           </option>
@@ -511,13 +507,13 @@ export default function StockAdjustmentsPage() {
                       </p>
                     </Field>
 
-                    <Field label="Notes">
+                    <Field label={text.notes}>
                       <textarea
                         value={notes}
                         onChange={(event) => setNotes(event.target.value)}
                         rows={4}
                         className="w-full rounded-lg border border-outline/10 bg-surface-low px-3 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        placeholder="Add a short explanation for the adjustment."
+                        placeholder={text.notesPlaceholder}
                       />
                     </Field>
 
@@ -527,24 +523,24 @@ export default function StockAdjustmentsPage() {
                       className="flex h-11 w-full items-center justify-center rounded-lg text-sm font-bold text-white disabled:opacity-60"
                       style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
                     >
-                      {isSubmitting ? "Saving adjustment…" : "Record Adjustment"}
+                      {isSubmitting ? text.savingAdjustment : text.recordAdjustment}
                     </button>
                   </form>
                 </>
               ) : (
                 <EmptyStateCard
                   compact
-                  title="Select a batch first"
-                  description="Pick a medicine and batch from the left so the adjustment can be tied to real stock."
+                  title={text.selectBatchFirst}
+                  description={text.selectBatchFirstDescription}
                 />
               )}
             </SurfaceCard>
 
             <SurfaceCard className="p-6">
               <div className="mb-5">
-                <h2 className="text-[1rem] font-bold text-on-surface">Recent Adjustments</h2>
+                <h2 className="text-[1rem] font-bold text-on-surface">{text.recentAdjustments}</h2>
                 <p className="mt-1 text-sm text-on-surface-variant">
-                  The last recorded stock corrections for this branch.
+                  {text.recentAdjustmentsDescription}
                 </p>
               </div>
 
@@ -561,7 +557,7 @@ export default function StockAdjustmentsPage() {
                             {item.medicine.name}
                           </p>
                           <p className="mt-1 text-xs text-on-surface-variant">
-                            Batch {item.batch.batchNumber} • {formatReason(item.reason)}
+                            {text.batch} {item.batch.batchNumber} • {formatReason(item.reason, text)}
                           </p>
                         </div>
 
@@ -573,7 +569,7 @@ export default function StockAdjustmentsPage() {
 
                       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-on-surface-variant">
                         <span>{item.createdBy}</span>
-                        <span>{formatRelativeTime(item.createdAt)}</span>
+                        <span>{formatRelativeTime(item.createdAt, locale)}</span>
                       </div>
                     </div>
                   ))}
@@ -581,8 +577,8 @@ export default function StockAdjustmentsPage() {
               ) : (
                 <EmptyStateCard
                   compact
-                  title="No adjustments yet"
-                  description="As soon as staff correct stock or record losses, the latest adjustments will appear here."
+                  title={text.noAdjustmentsYet}
+                  description={text.noAdjustmentsYetDescription}
                 />
               )}
             </SurfaceCard>
@@ -617,47 +613,237 @@ function InfoPair({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatReason(value: AdjustmentReason) {
-  return value.replaceAll("_", " ").toLowerCase();
+function getReasonOptions(text: (typeof ADJUSTMENTS_COPY)["en"]) {
+  return [
+    {
+      value: "COUNT_CORRECTION" as const,
+      label: text.reasonCountCorrection,
+      hint: text.reasonCountCorrectionHint,
+    },
+    {
+      value: "THEFT_SUSPECTED" as const,
+      label: text.reasonTheftSuspected,
+      hint: text.reasonTheftSuspectedHint,
+    },
+    {
+      value: "LOST" as const,
+      label: text.reasonLost,
+      hint: text.reasonLostHint,
+    },
+    {
+      value: "DAMAGE" as const,
+      label: text.reasonDamaged,
+      hint: text.reasonDamagedHint,
+    },
+    {
+      value: "EXPIRED" as const,
+      label: text.reasonExpired,
+      hint: text.reasonExpiredHint,
+    },
+    {
+      value: "RETURN_TO_SUPPLIER" as const,
+      label: text.reasonReturnToSupplier,
+      hint: text.reasonReturnToSupplierHint,
+    },
+    {
+      value: "OTHER" as const,
+      label: text.reasonOther,
+      hint: text.reasonOtherHint,
+    },
+  ];
+}
+
+function formatReason(
+  value: AdjustmentReason,
+  text: (typeof ADJUSTMENTS_COPY)["en"]
+) {
+  const option = getReasonOptions(text).find((item) => item.value === value);
+  return option?.label ?? value.replaceAll("_", " ").toLowerCase();
 }
 
 function formatSignedNumber(value: number) {
   return `${value > 0 ? "+" : ""}${value}`;
 }
 
-function formatCurrency(value: number) {
-  return value.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatRelativeTime(value: string) {
-  const diff = Date.now() - new Date(value).getTime();
-  const minutes = Math.floor(diff / (1000 * 60));
-
-  if (minutes < 1) {
-    return "Just now";
-  }
-
-  if (minutes < 60) {
-    return `${minutes}m ago`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-
-  if (hours < 24) {
-    return `${hours}h ago`;
-  }
-
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
+const ADJUSTMENTS_COPY = {
+  en: {
+    loadingStockAdjustments: "Loading stock adjustments…",
+    selectBatchBeforeAdjustment: "Select a batch before recording an adjustment.",
+    enterWholeNumberAdjustment: "Enter a whole number adjustment, such as -2 or 3.",
+    adjustmentSavedMessage: "{medicine} batch {batch} adjusted by {delta} units.",
+    adjustmentEvents: "Adjustment Events",
+    recentAdjustmentRecords: "Recent adjustment records",
+    negativeMoves: "Negative Moves",
+    lossesExpiryDamageReturns: "Losses, expiry, damage, and returns",
+    suspectedLoss: "Suspected Loss",
+    lostOrTheftSuspected: "Lost or theft-suspected incidents",
+    netUnitsDelta: "Net Units Delta",
+    positiveCorrections: "positive corrections",
+    stockAdjustments: "Stock Adjustments",
+    stockAdjustmentsDescription:
+      "Record losses, corrections, expiry write-offs, and supplier returns with a reason.",
+    searchPlaceholder: "Search medicines or batch numbers…",
+    noStockedMedicines: "No stocked medicines available",
+    noStockedMedicinesDescription:
+      "Receive stock first so there are active batches available to adjust.",
+    catalogMedicine: "Catalog medicine",
+    lowStock: "Low stock",
+    stable: "Stable",
+    batch: "Batch",
+    expires: "Expires",
+    units: "units",
+    sell: "sell",
+    adjustmentForm: "Adjustment Form",
+    adjustmentFormDescription:
+      "Every change writes an adjustment record, stock movement, and audit event.",
+    nearExpiry: "Near expiry",
+    available: "Available",
+    currentQuantity: "Current quantity",
+    sellingPrice: "Selling price",
+    quantityDelta: "Quantity delta",
+    reason: "Reason",
+    notes: "Notes",
+    notesPlaceholder: "Add a short explanation for the adjustment.",
+    savingAdjustment: "Saving adjustment…",
+    recordAdjustment: "Record Adjustment",
+    reasonCountCorrection: "Count correction",
+    reasonCountCorrectionHint: "Use when physical count differs from the system.",
+    reasonTheftSuspected: "Theft suspected",
+    reasonTheftSuspectedHint: "Record unexplained loss that needs review.",
+    reasonLost: "Lost stock",
+    reasonLostHint: "Record missing stock that cannot be accounted for.",
+    reasonDamaged: "Damaged",
+    reasonDamagedHint: "Remove unusable stock from the sellable pool.",
+    reasonExpired: "Expired",
+    reasonExpiredHint: "Retire batches that can no longer be dispensed.",
+    reasonReturnToSupplier: "Return to supplier",
+    reasonReturnToSupplierHint: "Track stock sent back upstream.",
+    reasonOther: "Other",
+    reasonOtherHint: "Use only if none of the standard reasons fit.",
+    selectBatchFirst: "Select a batch first",
+    selectBatchFirstDescription:
+      "Pick a medicine and batch from the left so the adjustment can be tied to real stock.",
+    recentAdjustments: "Recent Adjustments",
+    recentAdjustmentsDescription:
+      "The last recorded stock corrections for this branch.",
+    noAdjustmentsYet: "No adjustments yet",
+    noAdjustmentsYetDescription:
+      "As soon as staff correct stock or record losses, the latest adjustments will appear here.",
+  },
+  am: {
+    loadingStockAdjustments: "የእቃ ማስተካከያዎች በመጫን ላይ…",
+    selectBatchBeforeAdjustment: "ማስተካከያ ከመመዝገብዎ በፊት ባች ይምረጡ።",
+    enterWholeNumberAdjustment: "እንደ -2 ወይም 3 ያለ ሙሉ ቁጥር ማስተካከያ ያስገቡ።",
+    adjustmentSavedMessage: "{medicine} ባች {batch} በ {delta} ዩኒት ተስተካክሏል።",
+    adjustmentEvents: "የማስተካከያ ክስተቶች",
+    recentAdjustmentRecords: "የቅርብ የማስተካከያ መዝገቦች",
+    negativeMoves: "አሉታዊ እንቅስቃሴዎች",
+    lossesExpiryDamageReturns: "ጉድለት፣ ማብቂያ፣ ጉዳት እና መመለሻዎች",
+    suspectedLoss: "የተጠረጠረ ጉድለት",
+    lostOrTheftSuspected: "የጠፉ ወይም የስርቆት ጥርጣሬ ክስተቶች",
+    netUnitsDelta: "የተጣራ የዩኒት ልዩነት",
+    positiveCorrections: "አዎንታዊ ማስተካከያዎች",
+    stockAdjustments: "የእቃ ማስተካከያዎች",
+    stockAdjustmentsDescription: "ጉድለቶችን፣ ማስተካከያዎችን፣ የማብቂያ ጥፋቶችን እና የአቅራቢ መመለሻዎችን በምክንያት ይመዝግቡ።",
+    searchPlaceholder: "መድሃኒቶችን ወይም ባች ቁጥሮችን ይፈልጉ…",
+    noStockedMedicines: "እቃ ያላቸው መድሃኒቶች የሉም",
+    noStockedMedicinesDescription: "ለማስተካከል ንቁ ባቾች እንዲኖሩ መጀመሪያ እቃ ይቀበሉ።",
+    catalogMedicine: "የካታሎግ መድሃኒት",
+    lowStock: "ዝቅተኛ እቃ",
+    stable: "የተረጋጋ",
+    batch: "ባች",
+    expires: "የሚያልቀው",
+    units: "ዩኒቶች",
+    sell: "ሽያጭ",
+    adjustmentForm: "የማስተካከያ ቅጽ",
+    adjustmentFormDescription: "እያንዳንዱ ለውጥ የማስተካከያ መዝገብ፣ የእቃ እንቅስቃሴ እና የኦዲት ክስተት ይጽፋል።",
+    nearExpiry: "በቅርብ ማብቂያ",
+    available: "የሚገኝ",
+    currentQuantity: "የአሁኑ ብዛት",
+    sellingPrice: "የመሸጫ ዋጋ",
+    quantityDelta: "የብዛት ልዩነት",
+    reason: "ምክንያት",
+    notes: "ማስታወሻዎች",
+    notesPlaceholder: "ለማስተካከያው አጭር ማብራሪያ ያክሉ።",
+    savingAdjustment: "ማስተካከያው በማስቀመጥ ላይ…",
+    recordAdjustment: "ማስተካከያውን መዝግብ",
+    reasonCountCorrection: "የቆጠራ ማስተካከያ",
+    reasonCountCorrectionHint: "የአካል ቆጠራ ከሲስተሙ ሲለይ ይጠቀሙ።",
+    reasonTheftSuspected: "ስርቆት ተጠርጥሯል",
+    reasonTheftSuspectedHint: "ግምገማ የሚፈልግ ያልተብራራ ጉድለት ይመዝግቡ።",
+    reasonLost: "የጠፋ እቃ",
+    reasonLostHint: "ምክንያት ሊገለጽ የማይችል የጠፋ እቃ ይመዝግቡ።",
+    reasonDamaged: "የተጎዳ",
+    reasonDamagedHint: "የማይሸጥ እቃን ከሚሸጥ እቃ ስብስብ ውስጥ ያስወግዱ።",
+    reasonExpired: "ያለቀ",
+    reasonExpiredHint: "ከእንግዲህ ሊሰጡ የማይችሉ ባቾችን ያገለሉ።",
+    reasonReturnToSupplier: "ወደ አቅራቢ መመለስ",
+    reasonReturnToSupplierHint: "ወደ ላይ የተመለሰ እቃ ይከታተሉ።",
+    reasonOther: "ሌላ",
+    reasonOtherHint: "መደበኛ ምክንያቶቹ ካልሰሩ ብቻ ይጠቀሙ።",
+    selectBatchFirst: "መጀመሪያ ባች ይምረጡ",
+    selectBatchFirstDescription: "ማስተካከያው ከእውነተኛ እቃ ጋር እንዲገናኝ ከግራው መድሃኒት እና ባች ይምረጡ።",
+    recentAdjustments: "የቅርብ ማስተካከያዎች",
+    recentAdjustmentsDescription: "ለዚህ ቅርንጫፍ በቅርቡ የተመዘገቡ የእቃ ማስተካከያዎች።",
+    noAdjustmentsYet: "ማስተካከያ እስካሁን የለም",
+    noAdjustmentsYetDescription: "ሰራተኞች እቃን ሲያስተካክሉ ወይም ጉድለት ሲመዘግቡ የቅርብ ማስተካከያዎች እዚህ ይታያሉ።",
+  },
+  om: {
+    loadingStockAdjustments: "Sirreeffamoonni kuusaa fe'amaa jiru…",
+    selectBatchBeforeAdjustment: "Sirreeffama galmeessu dura baachii filadhu.",
+    enterWholeNumberAdjustment: "Sirreeffama guutuu lakkoofsa fakkeenyaaf -2 yookaan 3 galchi.",
+    adjustmentSavedMessage: "{medicine} baachiin {batch} yuunitii {delta}n sirreeffameera.",
+    adjustmentEvents: "Taateewwan Sirreeffamaa",
+    recentAdjustmentRecords: "Galmeewwan sirreeffamaa yeroo dhiyoo",
+    negativeMoves: "Sochiiwwan Hamaa",
+    lossesExpiryDamageReturns: "Badiinsa, xumuramuu, miidhaa fi deebisa",
+    suspectedLoss: "Badiinsa Shakkame",
+    lostOrTheftSuspected: "Taateewwan dhabamuu yookaan hatamuu shakkaman",
+    netUnitsDelta: "Garaagarummaa Yuunitii Saafaa",
+    positiveCorrections: "sirreeffamoota gaarii",
+    stockAdjustments: "Sirreeffamoota Kuusaa",
+    stockAdjustmentsDescription: "Badiinsa, sirreeffama, xumuramuu fi deebisa dhiyeessaa sababaan galmeessi.",
+    searchPlaceholder: "Qoricha yookaan lakkoofsa baachii barbaadi…",
+    noStockedMedicines: "Qorichi kuusaa qabu hin jiru",
+    noStockedMedicinesDescription: "Sirreessuuf baachiiwwan hojii irra jiran akka jiraatan dura kuusaa fudhadhu.",
+    catalogMedicine: "Qoricha kaataalogii",
+    lowStock: "Kuusaa Gadi Aanaa",
+    stable: "Tasgabbaa'aa",
+    batch: "Baachii",
+    expires: "Xumura",
+    units: "yuunitii",
+    sell: "gurguri",
+    adjustmentForm: "Unka Sirreeffamaa",
+    adjustmentFormDescription: "Jijjiiramni hundi galmee sirreeffamaa, sochii kuusaa fi taatee odiitii ni barreessa.",
+    nearExpiry: "Xumuramuu Dhiyaataa",
+    available: "Ni argama",
+    currentQuantity: "Baay'ina ammaa",
+    sellingPrice: "Gatii gurgurtaa",
+    quantityDelta: "Garaagarummaa baay'inaa",
+    reason: "Sababa",
+    notes: "Yaadannoo",
+    notesPlaceholder: "Sirreeffamichaaf ibsa gabaabaa dabali.",
+    savingAdjustment: "Sirreeffamni olkaa'amaa jira…",
+    recordAdjustment: "Sirreeffama Galmeessi",
+    reasonCountCorrection: "Sirreeffama lakkoofsaa",
+    reasonCountCorrectionHint: "Yeroo lakkoofsi qaamaa kan sirnaa irraa adda ta'u itti fayyadami.",
+    reasonTheftSuspected: "Hannaan shakkame",
+    reasonTheftSuspectedHint: "Badiinsa hin ibsamne kan sakatta'iinsa barbaadu galmeessi.",
+    reasonLost: "Kuusaa bade",
+    reasonLostHint: "Kuusaa dhabame kan ibsa hin qabne galmeessi.",
+    reasonDamaged: "Miidhame",
+    reasonDamagedHint: "Kuusaa gurguramuu hin dandeenye keessaa baasi.",
+    reasonExpired: "Xumurame",
+    reasonExpiredHint: "Baachiiwwan kana booda kennamuu hin dandeenye hojii irraa baasi.",
+    reasonReturnToSupplier: "Gara dhiyeessaatti deebisi",
+    reasonReturnToSupplierHint: "Kuusaa gara gubbaatti deebi'e hordofi.",
+    reasonOther: "Kan biraa",
+    reasonOtherHint: "Sababoonni idilee yoo hin taane qofa fayyadami.",
+    selectBatchFirst: "Dursee baachii filadhu",
+    selectBatchFirstDescription: "Sirreeffamni kuusaa dhugaa irratti akka hidhatuuf qoricha fi baachii irraa fili.",
+    recentAdjustments: "Sirreeffamoota Yeroo Dhihoo",
+    recentAdjustmentsDescription: "Sirreeffamoota kuusaa yeroo dhiyoo damee kanaaf galmaa'an.",
+    noAdjustmentsYet: "Ammaaf sirreeffamni hin jiru",
+    noAdjustmentsYetDescription: "Yeroo hojjettoonni kuusaa sirreessan yookaan badiinsa galmeessan sirreeffamoonni yeroo dhiyoo asitti mul'atu.",
+  },
+} as const;
