@@ -24,6 +24,13 @@ enum PaymentMethod {
   BANK_TRANSFER
 }
 
+enum PurchaseOrderStatus {
+  OPEN
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
 enum AdjustmentReason {
   DAMAGE
   EXPIRED
@@ -61,6 +68,8 @@ enum AuditAction {
   STOCK_ADJUSTED
   SALE_CREATED
   SALE_VOIDED
+  PURCHASE_ORDER_CREATED
+  PURCHASE_ORDER_RECEIVED
   LOGIN_SUCCESS
   LOGIN_FAILED
 }
@@ -79,6 +88,7 @@ model Pharmacy {
   users                User[]
   medicines            Medicine[]
   stockBatches         StockBatch[]
+  purchaseOrders       PurchaseOrder[]
   sales                Sale[]
   inventoryAdjustments InventoryAdjustment[]
   stockMovements       StockMovement[]
@@ -100,6 +110,7 @@ model Branch {
   pharmacy             Pharmacy             @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   users                User[]
   stockBatches         StockBatch[]
+  purchaseOrders       PurchaseOrder[]
   sales                Sale[]
   inventoryAdjustments InventoryAdjustment[]
   stockMovements       StockMovement[]
@@ -125,6 +136,7 @@ model User {
   pharmacy            Pharmacy              @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   branch              Branch?               @relation(fields: [branchId], references: [id], onDelete: SetNull)
   createdBatches      StockBatch[]          @relation("StockBatchCreatedBy")
+  createdPurchaseOrders PurchaseOrder[]     @relation("PurchaseOrderCreatedBy")
   sales               Sale[]                @relation("SaleSoldBy")
   inventoryAdjustments InventoryAdjustment[]
   stockMovements      StockMovement[]
@@ -150,6 +162,7 @@ model Medicine {
 
   pharmacy             Pharmacy              @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   stockBatches         StockBatch[]
+  purchaseOrderItems   PurchaseOrderItem[]
   saleItems            SaleItem[]
   inventoryAdjustments InventoryAdjustment[]
   stockMovements       StockMovement[]
@@ -185,6 +198,46 @@ model StockBatch {
   @@index([branchId, medicineId, expiryDate])
   @@unique([branchId, medicineId, batchNumber])
   @@map("stock_batches")
+}
+
+model PurchaseOrder {
+  id           String              @id @default(uuid())
+  pharmacyId   String
+  branchId     String
+  orderNumber  String
+  status       PurchaseOrderStatus @default(OPEN)
+  supplierName String
+  notes        String?
+  createdById  String
+  orderedAt    DateTime            @default(now())
+  receivedAt   DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  pharmacy   Pharmacy            @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  branch     Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  createdBy  User                @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  items      PurchaseOrderItem[]
+
+  @@unique([branchId, orderNumber])
+  @@index([branchId, status, orderedAt])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id               String        @id @default(uuid())
+  purchaseOrderId  String
+  medicineId       String
+  requestedQuantity Int
+  receivedQuantity Int           @default(0)
+  unitCost         Decimal       @db.Decimal(12, 2)
+  createdAt        DateTime      @default(now())
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  medicine      Medicine      @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseOrderId])
+  @@map("purchase_order_items")
 }
 
 model Sale {

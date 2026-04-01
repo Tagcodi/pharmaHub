@@ -158,6 +158,21 @@ export default function MedicinesPage() {
 
           <div className="flex shrink-0 items-center gap-3">
             <Link
+              href="/purchase-orders"
+              className="flex h-11 items-center gap-2 rounded border border-outline/15 bg-surface-low px-5 text-sm font-bold text-on-surface transition-colors hover:bg-surface"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path
+                  d="M3 2.5h8M3 6.5h8M3 10.5h5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+              Restock Orders
+            </Link>
+
+            <Link
               href="/medicines/counts"
               className="flex h-11 items-center gap-2 rounded border border-outline/15 bg-surface-low px-5 text-sm font-bold text-on-surface transition-colors hover:bg-surface"
             >

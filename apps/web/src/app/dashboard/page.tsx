@@ -384,6 +384,7 @@ export default function DashboardPage() {
                 {session.user.role !== "CASHIER" ? (
                   <>
                     <QuickActionLink href="/medicines/adjust" label="Receive Stock" />
+                    <QuickActionLink href="/purchase-orders" label="Create Restock Order" />
                     <QuickActionLink
                       href="/medicines/adjustments"
                       label="Adjust Stock"

@@ -7,6 +7,8 @@ async function main() {
   receivedAt.setUTCSeconds(0, 0);
   const expiryDate = new Date(receivedAt);
   expiryDate.setUTCDate(expiryDate.getUTCDate() + 10);
+  const purchaseExpiryDate = new Date(receivedAt);
+  purchaseExpiryDate.setUTCDate(purchaseExpiryDate.getUTCDate() + 120);
 
   try {
     console.log("1. Verifying setup status before initial setup");
@@ -1084,7 +1086,270 @@ async function main() {
       "Dispensing mistake"
     );
 
-    console.log("Cycle count and alert center e2e checks passed.");
+    console.log("35. Reading the purchase order catalog");
+    const purchaseOrderCatalogResponse = await requestJson<{
+      metrics: {
+        totalMedicines: number;
+        lowStockCount: number;
+        recommendedOrderUnits: number;
+        openOrderCount: number;
+        outstandingOrderUnits: number;
+      };
+      lowStockMedicines: Array<{
+        id: string;
+        name: string;
+        recommendedOrderQuantity: number;
+        lastSupplierName: string | null;
+      }>;
+      medicines: Array<{
+        id: string;
+        name: string;
+      }>;
+    }>(context.baseUrl, "/purchase-orders/catalog", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(purchaseOrderCatalogResponse.status, 200);
+    assert.equal(purchaseOrderCatalogResponse.body.metrics.totalMedicines, 1);
+    assert.equal(purchaseOrderCatalogResponse.body.metrics.lowStockCount, 1);
+    assert.equal(purchaseOrderCatalogResponse.body.metrics.recommendedOrderUnits, 32);
+    assert.equal(purchaseOrderCatalogResponse.body.metrics.openOrderCount, 0);
+    assert.equal(purchaseOrderCatalogResponse.body.metrics.outstandingOrderUnits, 0);
+    assert.equal(
+      purchaseOrderCatalogResponse.body.lowStockMedicines[0]?.name,
+      "Paracetamol"
+    );
+    assert.equal(
+      purchaseOrderCatalogResponse.body.lowStockMedicines[0]?.recommendedOrderQuantity,
+      32
+    );
+    assert.equal(
+      purchaseOrderCatalogResponse.body.lowStockMedicines[0]?.lastSupplierName,
+      "EPSS"
+    );
+
+    console.log("36. Creating a supplier purchase order");
+    const createPurchaseOrderResponse = await requestJson<{
+      id: string;
+      orderNumber: string;
+      status: string;
+      supplierName: string;
+      totalRequestedQuantity: number;
+      totalReceivedQuantity: number;
+      outstandingQuantity: number;
+      totalOrderedValue: number;
+      items: Array<{
+        requestedQuantity: number;
+        receivedQuantity: number;
+        unitCost: number;
+        medicine: {
+          name: string;
+        };
+      }>;
+    }>(context.baseUrl, "/purchase-orders", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        supplierName: "EPSS",
+        notes: "Urgent replenishment after cycle count shortage",
+        items: [
+          {
+            medicineId: createMedicineResponse.body.id,
+            quantity: 20,
+            unitCost: 11,
+          },
+        ],
+      }),
+    });
+
+    assert.equal(createPurchaseOrderResponse.status, 201);
+    assert.match(createPurchaseOrderResponse.body.orderNumber, /^MAIN-PO-/);
+    assert.equal(createPurchaseOrderResponse.body.status, "OPEN");
+    assert.equal(createPurchaseOrderResponse.body.supplierName, "EPSS");
+    assert.equal(createPurchaseOrderResponse.body.totalRequestedQuantity, 20);
+    assert.equal(createPurchaseOrderResponse.body.totalReceivedQuantity, 0);
+    assert.equal(createPurchaseOrderResponse.body.outstandingQuantity, 20);
+    assert.equal(createPurchaseOrderResponse.body.totalOrderedValue, 220);
+    assert.equal(
+      createPurchaseOrderResponse.body.items[0]?.medicine.name,
+      "Paracetamol"
+    );
+    assert.equal(createPurchaseOrderResponse.body.items[0]?.requestedQuantity, 20);
+    assert.equal(createPurchaseOrderResponse.body.items[0]?.receivedQuantity, 0);
+    assert.equal(createPurchaseOrderResponse.body.items[0]?.unitCost, 11);
+
+    console.log("37. Listing purchase orders after creation");
+    const purchaseOrdersAfterCreateResponse = await requestJson<{
+      metrics: {
+        totalOrders: number;
+        openOrders: number;
+        receivedOrders: number;
+        totalOrderedValue: number;
+        outstandingUnits: number;
+      };
+      orders: Array<{
+        id: string;
+        orderNumber: string;
+        status: string;
+        outstandingQuantity: number;
+        items: Array<{
+          id: string;
+          requestedQuantity: number;
+          outstandingQuantity: number;
+        }>;
+      }>;
+    }>(context.baseUrl, "/purchase-orders", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(purchaseOrdersAfterCreateResponse.status, 200);
+    assert.equal(purchaseOrdersAfterCreateResponse.body.metrics.totalOrders, 1);
+    assert.equal(purchaseOrdersAfterCreateResponse.body.metrics.openOrders, 1);
+    assert.equal(purchaseOrdersAfterCreateResponse.body.metrics.receivedOrders, 0);
+    assert.equal(purchaseOrdersAfterCreateResponse.body.metrics.totalOrderedValue, 220);
+    assert.equal(purchaseOrdersAfterCreateResponse.body.metrics.outstandingUnits, 20);
+    assert.equal(
+      purchaseOrdersAfterCreateResponse.body.orders[0]?.orderNumber,
+      createPurchaseOrderResponse.body.orderNumber
+    );
+    assert.equal(purchaseOrdersAfterCreateResponse.body.orders[0]?.status, "OPEN");
+    assert.equal(
+      purchaseOrdersAfterCreateResponse.body.orders[0]?.outstandingQuantity,
+      20
+    );
+
+    const purchaseOrderItemId =
+      purchaseOrdersAfterCreateResponse.body.orders[0]?.items[0]?.id;
+    assert.ok(purchaseOrderItemId);
+
+    console.log("38. Receiving the supplier order into a new stock batch");
+    const receivePurchaseOrderResponse = await requestJson<{
+      orderNumber: string;
+      status: string;
+      totalRequestedQuantity: number;
+      totalReceivedQuantity: number;
+      outstandingQuantity: number;
+      items: Array<{
+        receivedQuantity: number;
+        outstandingQuantity: number;
+      }>;
+    }>(
+      context.baseUrl,
+      `/purchase-orders/${createPurchaseOrderResponse.body.id}/receive`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          items: [
+            {
+              purchaseOrderItemId,
+              batchNumber: "B-2026-002",
+              expiryDate: purchaseExpiryDate.toISOString(),
+              receivedQuantity: 20,
+              costPrice: 11,
+              sellingPrice: 16,
+            },
+          ],
+        }),
+      }
+    );
+
+    assert.equal(receivePurchaseOrderResponse.status, 201);
+    assert.equal(
+      receivePurchaseOrderResponse.body.orderNumber,
+      createPurchaseOrderResponse.body.orderNumber
+    );
+    assert.equal(receivePurchaseOrderResponse.body.status, "RECEIVED");
+    assert.equal(receivePurchaseOrderResponse.body.totalRequestedQuantity, 20);
+    assert.equal(receivePurchaseOrderResponse.body.totalReceivedQuantity, 20);
+    assert.equal(receivePurchaseOrderResponse.body.outstandingQuantity, 0);
+    assert.equal(receivePurchaseOrderResponse.body.items[0]?.receivedQuantity, 20);
+    assert.equal(receivePurchaseOrderResponse.body.items[0]?.outstandingQuantity, 0);
+
+    console.log("39. Verifying inventory reflects the received purchase order");
+    const inventoryAfterPurchaseOrderResponse = await requestJson<{
+      totals: {
+        totalUnitsOnHand: number;
+        totalStockValue: number;
+        lowStockCount: number;
+      };
+      medicines: Array<{
+        totalQuantityOnHand: number;
+        latestBatchNumber: string | null;
+      }>;
+    }>(context.baseUrl, "/inventory/summary", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(inventoryAfterPurchaseOrderResponse.status, 200);
+    assert.equal(inventoryAfterPurchaseOrderResponse.body.totals.totalUnitsOnHand, 28);
+    assert.equal(inventoryAfterPurchaseOrderResponse.body.totals.totalStockValue, 440);
+    assert.equal(inventoryAfterPurchaseOrderResponse.body.totals.lowStockCount, 0);
+    assert.equal(
+      inventoryAfterPurchaseOrderResponse.body.medicines[0]?.totalQuantityOnHand,
+      28
+    );
+    assert.equal(
+      inventoryAfterPurchaseOrderResponse.body.medicines[0]?.latestBatchNumber,
+      "B-2026-002"
+    );
+
+    console.log("40. Confirming purchase orders and audit history after receipt");
+    const purchaseOrdersAfterReceiveResponse = await requestJson<{
+      metrics: {
+        openOrders: number;
+        receivedOrders: number;
+        outstandingUnits: number;
+      };
+      orders: Array<{
+        status: string;
+        totalReceivedQuantity: number;
+      }>;
+    }>(context.baseUrl, "/purchase-orders", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(purchaseOrdersAfterReceiveResponse.status, 200);
+    assert.equal(purchaseOrdersAfterReceiveResponse.body.metrics.openOrders, 0);
+    assert.equal(purchaseOrdersAfterReceiveResponse.body.metrics.receivedOrders, 1);
+    assert.equal(purchaseOrdersAfterReceiveResponse.body.metrics.outstandingUnits, 0);
+    assert.equal(purchaseOrdersAfterReceiveResponse.body.orders[0]?.status, "RECEIVED");
+    assert.equal(
+      purchaseOrdersAfterReceiveResponse.body.orders[0]?.totalReceivedQuantity,
+      20
+    );
+
+    const auditLogsAfterPurchaseOrderResponse = await requestJson<{
+      items: Array<{
+        title: string;
+        category: string;
+      }>;
+    }>(context.baseUrl, "/audit/logs", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(auditLogsAfterPurchaseOrderResponse.status, 200);
+    assert.equal(auditLogsAfterPurchaseOrderResponse.body.items[0]?.category, "Inventory");
+    assert.equal(
+      auditLogsAfterPurchaseOrderResponse.body.items[0]?.title,
+      "Purchase order received"
+    );
+
+    console.log("Restocking and purchase order e2e checks passed.");
   } finally {
     await context.close();
   }

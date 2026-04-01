@@ -34,6 +34,8 @@ const ICONS = {
   audit:
     "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
   reports: "M18 20V10M12 20V4M6 20v-6",
+  purchaseOrders:
+    "M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m1 8h-6M16 14h-6M10 18H8",
   users:
     "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm14 10v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75",
   settings:
@@ -54,6 +56,7 @@ const PRIMARY_NAV = [
 ] as const;
 
 const SECONDARY_NAV = [
+  { href: "/purchase-orders", label: "Restocking",       icon: "purchaseOrders" as const },
   { href: "/audit",   label: "Audit Log",        icon: "audit"   as const },
   { href: "/reports", label: "Reports",           icon: "reports" as const },
   { href: "/users",   label: "User Management",   icon: "users"   as const },
@@ -167,6 +170,10 @@ export function AppShell({ session, children }: AppShellProps) {
   const secondaryNav = SECONDARY_NAV.filter((item) => {
     if (item.href === "/users") {
       return role === "OWNER";
+    }
+
+    if (item.href === "/purchase-orders") {
+      return role !== "CASHIER";
     }
 
     if (item.href === "/audit") {
