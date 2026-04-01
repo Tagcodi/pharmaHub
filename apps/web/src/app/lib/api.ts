@@ -326,6 +326,87 @@ export type CreateSaleResponse = {
   }>;
 };
 
+export type ReportsSummaryResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  range: {
+    days: number;
+    startDate: string;
+    endDate: string;
+  };
+  sales: {
+    totalSalesAmount: number;
+    completedSalesCount: number;
+    averageTicket: number;
+    totalUnitsSold: number;
+    paymentBreakdown: Array<{
+      method: "CASH" | "CARD" | "MOBILE_MONEY" | "BANK_TRANSFER";
+      amount: number;
+      count: number;
+    }>;
+    dailySales: Array<{
+      dayKey: string;
+      label: string;
+      date: string;
+      value: number;
+    }>;
+    topMedicines: Array<{
+      medicineId: string;
+      name: string;
+      quantitySold: number;
+      revenue: number;
+    }>;
+    recentSales: Array<{
+      id: string;
+      saleNumber: string;
+      soldBy: string;
+      soldAt: string;
+      paymentMethod: "CASH" | "CARD" | "MOBILE_MONEY" | "BANK_TRANSFER";
+      itemCount: number;
+      totalAmount: number;
+    }>;
+  };
+  inventory: {
+    totalInventoryValue: number;
+    totalCostValue: number;
+    totalUnitsOnHand: number;
+    activeBatchCount: number;
+    lowStockCount: number;
+    nearExpiryBatchCount: number;
+    lowStockMedicines: Array<{
+      medicineId: string;
+      name: string;
+      quantityOnHand: number;
+      nextExpiryDate: string | null;
+      isExpiringSoon: boolean;
+    }>;
+  };
+  adjustments: {
+    totalAdjustments: number;
+    positiveAdjustments: number;
+    negativeAdjustments: number;
+    suspectedLossCount: number;
+    netUnitsDelta: number;
+    reasonBreakdown: Array<{
+      reason: AdjustmentReason;
+      count: number;
+    }>;
+    recentLossEvents: Array<{
+      id: string;
+      medicineName: string;
+      batchNumber: string;
+      reason: AdjustmentReason;
+      quantityDelta: number;
+      createdBy: string;
+      createdAt: string;
+      notes: string | null;
+    }>;
+  };
+};
+
 export function getApiBase(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 }
