@@ -11,6 +11,11 @@ import {
   MovementType,
 } from "@prisma/client";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
+import {
+  appendIdentifierSequence,
+  buildBatchBase,
+  normalizeIdentifierInput,
+} from "../common/utils/inventory-identifiers.util";
 import { PrismaService } from "../prisma/prisma.service";
 import type { CreatePurchaseOrderDto } from "./dto/create-purchase-order.dto";
 import type { ReceivePurchaseOrderDto } from "./dto/receive-purchase-order.dto";
@@ -343,14 +348,11 @@ export class PurchaseOrdersService {
       throw new BadRequestException("A valid received date is required.");
     }
 
-    const receiptKeys = dto.items.map(
-      (item) =>
-        `${item.purchaseOrderItemId}:${item.batchNumber.trim().toLowerCase()}`
-    );
+    const receiptKeys = dto.items.map((item) => item.purchaseOrderItemId);
 
     if (new Set(receiptKeys).size !== receiptKeys.length) {
       throw new BadRequestException(
-        "Each received line must use a unique purchase order item and batch number combination."
+        "Each purchase order item can only appear once in a receipt submission."
       );
     }
 
@@ -408,16 +410,28 @@ export class PurchaseOrdersService {
           );
         }
 
-        const batchNumber = receipt.batchNumber.trim();
+        const requestedBatchNumber = normalizeIdentifierInput(receipt.batchNumber);
         const expiryDate = new Date(receipt.expiryDate);
-
-        if (!batchNumber) {
-          throw new BadRequestException("Batch number is required for each receipt line.");
-        }
 
         if (Number.isNaN(expiryDate.getTime())) {
           throw new BadRequestException("A valid expiry date is required.");
         }
+
+        const batchNumber = requestedBatchNumber
+          ? await this.ensureUniqueBatchNumber(tx, {
+              pharmacyId: currentUser.pharmacyId,
+              branchId: branch.id,
+              medicineId: orderItem.medicineId,
+              batchNumber: requestedBatchNumber,
+              medicineName: orderItem.medicine.name,
+            })
+          : await this.generateUniqueBatchNumber(tx, {
+              pharmacyId: currentUser.pharmacyId,
+              branchId: branch.id,
+              medicineId: orderItem.medicineId,
+              medicineName: orderItem.medicine.name,
+              receivedAt,
+            });
 
         if (expiryDate.getTime() <= receivedAt.getTime()) {
           throw new BadRequestException(
@@ -437,24 +451,6 @@ export class PurchaseOrdersService {
         if (receipt.receivedQuantity > remainingQuantity) {
           throw new BadRequestException(
             `${orderItem.medicine.name} only has ${remainingQuantity} units remaining on this order.`
-          );
-        }
-
-        const existingBatch = await tx.stockBatch.findFirst({
-          where: {
-            pharmacyId: currentUser.pharmacyId,
-            branchId: branch.id,
-            medicineId: orderItem.medicineId,
-            batchNumber: {
-              equals: batchNumber,
-              mode: "insensitive",
-            },
-          },
-        });
-
-        if (existingBatch) {
-          throw new BadRequestException(
-            `Batch ${batchNumber} already exists for ${orderItem.medicine.name}.`
           );
         }
 
@@ -706,6 +702,82 @@ export class PurchaseOrdersService {
   private normalizeOptional(value?: string) {
     const normalized = value?.trim();
     return normalized ? normalized : null;
+  }
+
+  private async ensureUniqueBatchNumber(
+    tx: Prisma.TransactionClient,
+    input: {
+      pharmacyId: string;
+      branchId: string;
+      medicineId: string;
+      batchNumber: string;
+      medicineName: string;
+    }
+  ) {
+    const existingBatch = await tx.stockBatch.findFirst({
+      where: {
+        pharmacyId: input.pharmacyId,
+        branchId: input.branchId,
+        medicineId: input.medicineId,
+        batchNumber: {
+          equals: input.batchNumber,
+          mode: "insensitive",
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingBatch) {
+      throw new BadRequestException(
+        `Batch ${input.batchNumber} already exists for ${input.medicineName}.`
+      );
+    }
+
+    return input.batchNumber;
+  }
+
+  private async generateUniqueBatchNumber(
+    tx: Prisma.TransactionClient,
+    input: {
+      pharmacyId: string;
+      branchId: string;
+      medicineId: string;
+      medicineName: string;
+      receivedAt: Date;
+    }
+  ) {
+    const base = buildBatchBase({
+      medicineName: input.medicineName,
+      receivedAt: input.receivedAt,
+    });
+
+    for (let sequence = 1; sequence <= 999; sequence += 1) {
+      const candidate = appendIdentifierSequence(base, sequence);
+      const existingBatch = await tx.stockBatch.findFirst({
+        where: {
+          pharmacyId: input.pharmacyId,
+          branchId: input.branchId,
+          medicineId: input.medicineId,
+          batchNumber: {
+            equals: candidate,
+            mode: "insensitive",
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!existingBatch) {
+        return candidate;
+      }
+    }
+
+    throw new BadRequestException(
+      `Unable to generate a unique batch number for ${input.medicineName}. Please enter one manually.`
+    );
   }
 
   private toNumber(value: Prisma.Decimal | number | string | null | undefined) {

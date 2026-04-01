@@ -438,15 +438,6 @@ export default function PurchaseOrdersPage() {
     }
 
     for (const { item, form } of itemsToReceive) {
-      if (!form.batchNumber.trim()) {
-        setError(
-          t("purchaseOrders.error.batchRequired", {
-            medicineName: item.medicine.name,
-          })
-        );
-        return;
-      }
-
       if (!form.expiryDate) {
         setError(
           t("purchaseOrders.error.expiryRequired", {
@@ -511,7 +502,7 @@ export default function PurchaseOrdersPage() {
           body: JSON.stringify({
             items: itemsToReceive.map(({ item, form }) => ({
               purchaseOrderItemId: item.id,
-              batchNumber: form.batchNumber.trim(),
+              batchNumber: form.batchNumber.trim() || undefined,
               expiryDate: new Date(form.expiryDate).toISOString(),
               receivedQuantity: Number(form.receivedQuantity),
               costPrice: Number(form.costPrice),
@@ -1056,6 +1047,9 @@ export default function PurchaseOrdersPage() {
                                     className="h-11 w-full rounded-lg border border-outline/10 bg-surface-lowest px-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
                                     placeholder={t("purchaseOrders.placeholder.batch")}
                                   />
+                                  <p className="mt-2 text-xs text-on-surface-variant">
+                                    {t("purchaseOrders.hint.autoBatch")}
+                                  </p>
                                 </label>
 
                                 <div className="grid gap-3 md:grid-cols-2">

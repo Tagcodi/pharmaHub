@@ -2,6 +2,11 @@ import { BadRequestException, Injectable } from "@nestjs/common";
 import { AuditAction } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
+import {
+  appendIdentifierSequence,
+  buildSkuBase,
+  normalizeIdentifierInput,
+} from "../common/utils/inventory-identifiers.util";
 import type { CreateMedicineDto } from "./dto/create-medicine.dto";
 
 @Injectable()
@@ -42,6 +47,7 @@ export class MedicinesService {
     const normalizedName = dto.name.trim();
     const normalizedStrength = this.normalizeOptional(dto.strength);
     const normalizedForm = this.normalizeOptional(dto.form);
+    const requestedSku = normalizeIdentifierInput(dto.sku);
 
     const existingMedicine = await this.prisma.medicine.findFirst({
       where: {
@@ -77,7 +83,13 @@ export class MedicinesService {
         name: normalizedName,
         genericName: this.normalizeOptional(dto.genericName),
         brandName: this.normalizeOptional(dto.brandName),
-        sku: this.normalizeOptional(dto.sku),
+        sku: requestedSku
+          ? await this.ensureUniqueSku(currentUser.pharmacyId, requestedSku)
+          : await this.generateUniqueSku(currentUser.pharmacyId, {
+              name: normalizedName,
+              strength: normalizedStrength,
+              form: normalizedForm,
+            }),
         form: normalizedForm,
         strength: normalizedStrength,
         category: this.normalizeOptional(dto.category),
@@ -115,6 +127,83 @@ export class MedicinesService {
       isActive: medicine.isActive,
       createdAt: medicine.createdAt,
     };
+  }
+
+  private async ensureUniqueSku(
+    pharmacyId: string,
+    sku: string,
+    excludeMedicineId?: string
+  ) {
+    const existingMedicine = await this.prisma.medicine.findFirst({
+      where: {
+        pharmacyId,
+        sku: {
+          equals: sku,
+          mode: "insensitive",
+        },
+        ...(excludeMedicineId
+          ? {
+              id: {
+                not: excludeMedicineId,
+              },
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingMedicine) {
+      throw new BadRequestException(
+        "That SKU is already in use for another medicine."
+      );
+    }
+
+    return sku;
+  }
+
+  private async generateUniqueSku(
+    pharmacyId: string,
+    input: {
+      name: string;
+      strength?: string | null;
+      form?: string | null;
+    },
+    excludeMedicineId?: string
+  ) {
+    const base = buildSkuBase(input);
+
+    for (let sequence = 1; sequence <= 999; sequence += 1) {
+      const candidate = appendIdentifierSequence(base, sequence);
+      const existingMedicine = await this.prisma.medicine.findFirst({
+        where: {
+          pharmacyId,
+          sku: {
+            equals: candidate,
+            mode: "insensitive",
+          },
+          ...(excludeMedicineId
+            ? {
+                id: {
+                  not: excludeMedicineId,
+                },
+              }
+            : {}),
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!existingMedicine) {
+        return candidate;
+      }
+    }
+
+    throw new BadRequestException(
+      "Unable to generate a unique SKU right now. Please enter one manually."
+    );
   }
 
   private normalizeOptional(value?: string) {

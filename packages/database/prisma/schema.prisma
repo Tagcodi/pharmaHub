@@ -182,6 +182,7 @@ model Medicine {
   stockMovements       StockMovement[]
 
   @@index([pharmacyId, name])
+  @@unique([pharmacyId, sku])
   @@map("medicines")
 }
 

@@ -1638,6 +1638,140 @@ async function main() {
     assert.equal(prescriptionsAfterUpdateResponse.body.metrics.readyCount, 1);
     assert.equal(prescriptionsAfterUpdateResponse.body.prescriptions[0]?.status, "READY");
 
+    console.log("47. Auto-generating unique SKUs for similar medicines");
+    const createAutoSkuMedicineOneResponse = await requestJson<{
+      id: string;
+      name: string;
+      sku: string | null;
+    }>(context.baseUrl, "/medicines", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        name: "Amoxicillin",
+        strength: "500 mg",
+        form: "Capsule",
+        category: "Antibiotic",
+        unit: "Capsule",
+      }),
+    });
+
+    assert.equal(createAutoSkuMedicineOneResponse.status, 201);
+    assert.equal(createAutoSkuMedicineOneResponse.body.name, "Amoxicillin");
+    assert.match(
+      createAutoSkuMedicineOneResponse.body.sku ?? "",
+      /^AMOXIC-500MG-CAPS-001$/
+    );
+
+    const createAutoSkuMedicineTwoResponse = await requestJson<{
+      id: string;
+      name: string;
+      sku: string | null;
+    }>(context.baseUrl, "/medicines", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        name: "Amoxiclav",
+        strength: "500 mg",
+        form: "Capsule",
+        category: "Antibiotic",
+        unit: "Capsule",
+      }),
+    });
+
+    assert.equal(createAutoSkuMedicineTwoResponse.status, 201);
+    assert.equal(createAutoSkuMedicineTwoResponse.body.name, "Amoxiclav");
+    assert.match(
+      createAutoSkuMedicineTwoResponse.body.sku ?? "",
+      /^AMOXIC-500MG-CAPS-002$/
+    );
+    assert.notEqual(
+      createAutoSkuMedicineOneResponse.body.sku,
+      createAutoSkuMedicineTwoResponse.body.sku
+    );
+
+    console.log("48. Auto-generating unique batch numbers during stock intake");
+    const autoBatchExpiryDate = new Date(purchaseExpiryDate);
+    autoBatchExpiryDate.setUTCDate(autoBatchExpiryDate.getUTCDate() + 30);
+
+    const autoBatchStockInOneResponse = await requestJson<{
+      medicine: {
+        id: string;
+        name: string;
+        sku: string | null;
+      };
+      batch: {
+        batchNumber: string;
+        quantityOnHand: number;
+      };
+    }>(context.baseUrl, "/inventory/stock-in", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        medicineId: createAutoSkuMedicineOneResponse.body.id,
+        receivedAt: receivedAt.toISOString(),
+        expiryDate: autoBatchExpiryDate.toISOString(),
+        quantity: 4,
+        costPrice: 7,
+        sellingPrice: 11,
+        supplierName: "St. Gabriel Supplier",
+      }),
+    });
+
+    assert.equal(autoBatchStockInOneResponse.status, 201);
+    assert.equal(autoBatchStockInOneResponse.body.medicine.name, "Amoxicillin");
+    assert.equal(
+      autoBatchStockInOneResponse.body.medicine.sku,
+      createAutoSkuMedicineOneResponse.body.sku
+    );
+    assert.match(
+      autoBatchStockInOneResponse.body.batch.batchNumber,
+      /^AMOX-\d{8}-001$/
+    );
+    assert.equal(autoBatchStockInOneResponse.body.batch.quantityOnHand, 4);
+
+    const autoBatchStockInTwoResponse = await requestJson<{
+      medicine: {
+        id: string;
+        name: string;
+      };
+      batch: {
+        batchNumber: string;
+        quantityOnHand: number;
+      };
+    }>(context.baseUrl, "/inventory/stock-in", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        medicineId: createAutoSkuMedicineOneResponse.body.id,
+        receivedAt: receivedAt.toISOString(),
+        expiryDate: autoBatchExpiryDate.toISOString(),
+        quantity: 3,
+        costPrice: 7.25,
+        sellingPrice: 11.5,
+        supplierName: "St. Gabriel Supplier",
+      }),
+    });
+
+    assert.equal(autoBatchStockInTwoResponse.status, 201);
+    assert.equal(autoBatchStockInTwoResponse.body.medicine.name, "Amoxicillin");
+    assert.match(
+      autoBatchStockInTwoResponse.body.batch.batchNumber,
+      /^AMOX-\d{8}-002$/
+    );
+    assert.equal(autoBatchStockInTwoResponse.body.batch.quantityOnHand, 3);
+    assert.notEqual(
+      autoBatchStockInOneResponse.body.batch.batchNumber,
+      autoBatchStockInTwoResponse.body.batch.batchNumber
+    );
+
     console.log("Prescription queue e2e checks passed.");
   } finally {
     await context.close();
