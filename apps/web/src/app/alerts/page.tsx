@@ -9,6 +9,13 @@ import { EmptyStateCard } from "../components/ui/EmptyStateCard";
 import { KpiCard } from "../components/ui/KpiCard";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { SurfaceCard } from "../components/ui/SurfaceCard";
+import { useI18n } from "../i18n/I18nProvider";
+import {
+  formatCurrency,
+  formatDate,
+  formatDateTime,
+  formatNumber,
+} from "../i18n/format";
 import {
   TOKEN_KEY,
   fetchJson,
@@ -21,6 +28,8 @@ import {
 
 export default function AlertsPage() {
   const router = useRouter();
+  const { locale } = useI18n();
+  const text = ALERTS_COPY[locale] as (typeof ALERTS_COPY)["en"];
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [overview, setOverview] = useState<AlertsOverviewResponse | null>(null);
   const [search, setSearch] = useState("");
@@ -141,7 +150,7 @@ export default function AlertsPage() {
   }, [overview?.salesSignals, query]);
 
   if (isLoading) {
-    return <AppLoading message="Loading branch alerts…" />;
+    return <AppLoading message={text.loadingAlerts} />;
   }
 
   if (!session) {
@@ -166,11 +175,13 @@ export default function AlertsPage() {
         <div className="mb-7 flex flex-wrap items-start gap-5">
           <div>
             <h1 className="text-[2rem] font-bold leading-none tracking-[-0.04em] text-on-surface">
-              Alert Center
+              {text.alertCenter}
             </h1>
             <p className="mt-2 max-w-[720px] text-sm text-on-surface-variant">
-              Live exception monitoring for expiry pressure, low stock, suspicious
-              loss, and sale reversals across {overview?.branch.name ?? "this branch"}.
+              {text.alertDescription.replace(
+                "{branch}",
+                overview?.branch.name ?? text.thisBranch
+              )}
             </p>
           </div>
 
@@ -192,7 +203,7 @@ export default function AlertsPage() {
             </svg>
             <input
               type="search"
-              placeholder="Search medicine, batch, or sale…"
+              placeholder={text.searchPlaceholder}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               className="h-11 w-full rounded-lg bg-surface-low pl-9 pr-4 text-sm text-on-surface placeholder:text-outline/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -202,32 +213,32 @@ export default function AlertsPage() {
 
         <div className="mb-7 grid gap-5 xl:grid-cols-5">
           <KpiCard
-            label="Total Alerts"
+            label={text.totalAlerts}
             value={String(metrics.totalAlerts)}
-            note={`${metrics.warningAlerts} warning / ${metrics.criticalAlerts} critical`}
+            note={`${formatNumber(metrics.warningAlerts, locale)} ${text.warning.toLowerCase()} / ${formatNumber(metrics.criticalAlerts, locale)} ${text.critical.toLowerCase()}`}
           />
           <KpiCard
-            label="Critical Risk"
+            label={text.criticalRisk}
             value={String(metrics.criticalAlerts)}
             valueColor="#93000a"
-            note="Immediate review recommended"
+            note={text.immediateReview}
           />
           <KpiCard
-            label="Low Stock"
+            label={text.lowStock}
             value={String(metrics.lowStockCount)}
             valueColor="#93000a"
-            note={`${metrics.cycleCountShortageCount} recent count shortages`}
+            note={`${formatNumber(metrics.cycleCountShortageCount, locale)} ${text.recentCountShortages}`}
           />
           <KpiCard
-            label="Expiry Pressure"
+            label={text.expiryPressure}
             value={String(metrics.expiringSoonCount)}
             valueColor="#6e3900"
-            note={`${metrics.expiredCount} batches already expired`}
+            note={`${formatNumber(metrics.expiredCount, locale)} ${text.batchesExpired}`}
           />
           <KpiCard
-            label="Reversal Signals"
+            label={text.reversalSignals}
             value={String(metrics.voidedSaleCount)}
-            note={`${metrics.suspectedLossCount} suspected loss events`}
+            note={`${formatNumber(metrics.suspectedLossCount, locale)} ${text.suspectedLossEvents}`}
           />
         </div>
 
@@ -240,10 +251,10 @@ export default function AlertsPage() {
         <div className="grid gap-6 xl:grid-cols-[1.15fr_1fr]">
           <SurfaceCard className="overflow-hidden">
             <SectionHeader
-              title="Low Stock Medicines"
-              description="Batches that need replenishment or closer count supervision."
+              title={text.lowStockMedicines}
+              description={text.lowStockDescription}
               actionHref="/medicines"
-              actionLabel="Open Inventory"
+              actionLabel={text.openInventory}
             />
 
             {lowStockMedicines.length ? (
@@ -270,24 +281,24 @@ export default function AlertsPage() {
                           <p className="mt-1 text-xs text-on-surface-variant">
                             {[item.genericName, item.form, item.strength]
                               .filter(Boolean)
-                              .join(" • ") || "Catalog medicine"}
+                              .join(" • ") || text.catalogMedicine}
                           </p>
                         </td>
                         <td className="py-4 pr-4 text-sm text-on-surface-variant">
-                          {item.currentBatchNumber ?? "No active batch"}
+                          {item.currentBatchNumber ?? text.noActiveBatch}
                         </td>
                         <td className="py-4 pr-4 text-right text-sm font-semibold text-on-surface">
-                          {item.totalQuantityOnHand.toLocaleString("en-US")}
+                          {formatNumber(item.totalQuantityOnHand, locale)}
                         </td>
                         <td className="py-4 pr-4 text-right text-sm text-on-surface">
-                          ETB {formatCurrency(item.totalStockValue)}
+                          ETB {formatCurrency(item.totalStockValue, locale)}
                         </td>
                         <td className="py-4 pr-4 text-sm text-on-surface-variant">
-                          {item.nextExpiryDate ? formatDate(item.nextExpiryDate) : "No stock"}
+                          {item.nextExpiryDate ? formatDate(item.nextExpiryDate, locale) : text.noStock}
                         </td>
                         <td className="py-4 pr-6">
                           <StatusBadge
-                            label={item.status === "CRITICAL" ? "Critical" : "Warning"}
+                            label={item.status === "CRITICAL" ? text.critical : text.warning}
                             tone={item.status === "CRITICAL" ? "danger" : "warning"}
                           />
                         </td>
@@ -300,8 +311,8 @@ export default function AlertsPage() {
               <div className="p-6">
                 <EmptyStateCard
                   compact
-                  title="No low-stock medicines"
-                  description="Inventory levels are currently above the branch alert threshold."
+                  title={text.noLowStockMedicines}
+                  description={text.noLowStockDescription}
                 />
               </div>
             )}
@@ -309,10 +320,10 @@ export default function AlertsPage() {
 
           <SurfaceCard className="overflow-hidden">
             <SectionHeader
-              title="Expiry Queue"
-              description="Batches that should be sold through, quarantined, or adjusted soon."
+              title={text.expiryQueue}
+              description={text.expiryQueueDescription}
               actionHref="/medicines/adjustments"
-              actionLabel="Open Adjustments"
+              actionLabel={text.openAdjustments}
             />
 
             {expiryBatches.length ? (
@@ -328,12 +339,12 @@ export default function AlertsPage() {
                           {item.medicineName}
                         </p>
                         <p className="mt-1 text-xs text-on-surface-variant">
-                          Batch {item.batchNumber} • {item.quantityOnHand} units
+                          {text.batchLabel} {item.batchNumber} • {formatNumber(item.quantityOnHand, locale)} {text.units}
                           {item.supplierName ? ` • ${item.supplierName}` : ""}
                         </p>
                       </div>
                       <StatusBadge
-                        label={formatExpiryLabel(item.status, item.daysUntilExpiry)}
+                        label={formatExpiryLabel(item.status, item.daysUntilExpiry, text)}
                         tone={
                           item.status === "WARNING"
                             ? "warning"
@@ -343,11 +354,11 @@ export default function AlertsPage() {
                     </div>
 
                     <div className="mt-4 grid gap-3 text-xs md:grid-cols-3">
-                      <InfoPair label="Expiry Date" value={formatDate(item.expiryDate)} />
-                      <InfoPair label="Received" value={formatDate(item.receivedAt)} />
+                      <InfoPair label={text.expiryDate} value={formatDate(item.expiryDate, locale)} />
+                      <InfoPair label={text.received} value={formatDate(item.receivedAt, locale)} />
                       <InfoPair
-                        label="Stock Value"
-                        value={`ETB ${formatCurrency(item.quantityOnHand * item.sellingPrice)}`}
+                        label={text.stockValue}
+                        value={`ETB ${formatCurrency(item.quantityOnHand * item.sellingPrice, locale)}`}
                       />
                     </div>
                   </div>
@@ -357,8 +368,8 @@ export default function AlertsPage() {
               <div className="p-6">
                 <EmptyStateCard
                   compact
-                  title="No expiry alerts"
-                  description="There are no active batches inside the branch expiry threshold."
+                  title={text.noExpiryAlerts}
+                  description={text.noExpiryDescription}
                 />
               </div>
             )}
@@ -368,10 +379,10 @@ export default function AlertsPage() {
         <div className="mt-6 grid gap-6 xl:grid-cols-2">
           <SurfaceCard className="overflow-hidden">
             <SectionHeader
-              title="Loss And Count Signals"
-              description="Stock discrepancies and suspected shrinkage recorded in the last two weeks."
+              title={text.lossSignals}
+              description={text.lossSignalsDescription}
               actionHref="/medicines/counts"
-              actionLabel="Run Stock Count"
+              actionLabel={text.runStockCount}
             />
 
             {inventorySignals.length ? (
@@ -385,11 +396,11 @@ export default function AlertsPage() {
                       <div>
                         <p className="text-sm font-semibold text-on-surface">{item.title}</p>
                         <p className="mt-1 text-xs text-on-surface-variant">
-                          {item.medicineName} • Batch {item.batchNumber}
+                          {item.medicineName} • {text.batchLabel} {item.batchNumber}
                         </p>
                       </div>
                       <StatusBadge
-                        label={item.severity === "CRITICAL" ? "Critical" : "Warning"}
+                        label={item.severity === "CRITICAL" ? text.critical : text.warning}
                         tone={item.severity === "CRITICAL" ? "danger" : "warning"}
                       />
                     </div>
@@ -397,7 +408,7 @@ export default function AlertsPage() {
                     <p className="mt-3 text-sm text-on-surface-variant">{item.description}</p>
                     <div className="mt-4 flex items-center justify-between gap-3 text-xs text-on-surface-variant">
                       <span>{item.actor}</span>
-                      <span>{formatDateTime(item.createdAt)}</span>
+                      <span>{formatDateTime(item.createdAt, locale)}</span>
                     </div>
                   </div>
                 ))}
@@ -406,8 +417,8 @@ export default function AlertsPage() {
               <div className="p-6">
                 <EmptyStateCard
                   compact
-                  title="No loss signals"
-                  description="The branch has no recent suspicious stock or cycle-count shortage alerts."
+                  title={text.noLossSignals}
+                  description={text.noLossDescription}
                 />
               </div>
             )}
@@ -415,10 +426,10 @@ export default function AlertsPage() {
 
           <SurfaceCard className="overflow-hidden">
             <SectionHeader
-              title="Recent Sale Reversals"
-              description="Voided transactions that may need supervisor follow-up."
+              title={text.recentSaleReversals}
+              description={text.saleReversalDescription}
               actionHref="/sales"
-              actionLabel="Open Sales"
+              actionLabel={text.openSales}
             />
 
             {salesSignals.length ? (
@@ -435,17 +446,17 @@ export default function AlertsPage() {
                           {item.saleNumber} • {item.actor}
                         </p>
                       </div>
-                      <StatusBadge label="Warning" tone="warning" />
+                      <StatusBadge label={text.warning} tone="warning" />
                     </div>
 
                     <p className="mt-3 text-sm text-on-surface-variant">{item.description}</p>
                     <div className="mt-4 flex items-center justify-between gap-3 text-xs text-on-surface-variant">
                       <span>
                         {item.totalAmount === null
-                          ? "Amount unavailable"
-                          : `ETB ${formatCurrency(item.totalAmount)}`}
+                          ? text.amountUnavailable
+                          : `ETB ${formatCurrency(item.totalAmount, locale)}`}
                       </span>
-                      <span>{formatDateTime(item.createdAt)}</span>
+                      <span>{formatDateTime(item.createdAt, locale)}</span>
                     </div>
                   </div>
                 ))}
@@ -454,8 +465,8 @@ export default function AlertsPage() {
               <div className="p-6">
                 <EmptyStateCard
                   compact
-                  title="No sale reversals"
-                  description="Voided sales will appear here for supervisor review."
+                  title={text.noSaleReversals}
+                  description={text.noSaleReversalDescription}
                 />
               </div>
             )}
@@ -508,41 +519,179 @@ function InfoPair({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatCurrency(value: number) {
-  return value.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function formatExpiryLabel(
   status: "EXPIRED" | "CRITICAL" | "WARNING",
-  daysUntilExpiry: number
+  daysUntilExpiry: number,
+  text: (typeof ALERTS_COPY)["en"]
 ) {
   if (status === "EXPIRED") {
-    return "Expired";
+    return text.expired;
   }
 
   if (daysUntilExpiry === 0) {
-    return "Expires today";
+    return text.expiresToday;
   }
 
-  return `${daysUntilExpiry} day${daysUntilExpiry === 1 ? "" : "s"} left`;
+  return text.daysLeft
+    .replace("{count}", String(daysUntilExpiry))
+    .replace("{suffix}", daysUntilExpiry === 1 ? "" : text.pluralSuffix);
 }
+
+const ALERTS_COPY = {
+  en: {
+    loadingAlerts: "Loading branch alerts…",
+    alertCenter: "Alert Center",
+    alertDescription:
+      "Live exception monitoring for expiry pressure, low stock, suspicious loss, and sale reversals across {branch}.",
+    thisBranch: "this branch",
+    searchPlaceholder: "Search medicine, batch, or sale…",
+    totalAlerts: "Total Alerts",
+    warning: "Warning",
+    critical: "Critical",
+    criticalRisk: "Critical Risk",
+    immediateReview: "Immediate review recommended",
+    lowStock: "Low Stock",
+    recentCountShortages: "recent count shortages",
+    expiryPressure: "Expiry Pressure",
+    batchesExpired: "batches already expired",
+    reversalSignals: "Reversal Signals",
+    suspectedLossEvents: "suspected loss events",
+    lowStockMedicines: "Low Stock Medicines",
+    lowStockDescription: "Batches that need replenishment or closer count supervision.",
+    openInventory: "Open Inventory",
+    catalogMedicine: "Catalog medicine",
+    noActiveBatch: "No active batch",
+    noStock: "No stock",
+    noLowStockMedicines: "No low-stock medicines",
+    noLowStockDescription: "Inventory levels are currently above the branch alert threshold.",
+    expiryQueue: "Expiry Queue",
+    expiryQueueDescription: "Batches that should be sold through, quarantined, or adjusted soon.",
+    openAdjustments: "Open Adjustments",
+    batchLabel: "Batch",
+    units: "units",
+    expiryDate: "Expiry Date",
+    received: "Received",
+    stockValue: "Stock Value",
+    noExpiryAlerts: "No expiry alerts",
+    noExpiryDescription: "There are no active batches inside the branch expiry threshold.",
+    expired: "Expired",
+    expiresToday: "Expires today",
+    daysLeft: "{count} day{suffix} left",
+    pluralSuffix: "s",
+    lossSignals: "Loss And Count Signals",
+    lossSignalsDescription: "Stock discrepancies and suspected shrinkage recorded in the last two weeks.",
+    runStockCount: "Run Stock Count",
+    noLossSignals: "No loss signals",
+    noLossDescription: "The branch has no recent suspicious stock or cycle-count shortage alerts.",
+    recentSaleReversals: "Recent Sale Reversals",
+    saleReversalDescription: "Voided transactions that may need supervisor follow-up.",
+    openSales: "Open Sales",
+    amountUnavailable: "Amount unavailable",
+    noSaleReversals: "No sale reversals",
+    noSaleReversalDescription: "Voided sales will appear here for supervisor review.",
+  },
+  am: {
+    loadingAlerts: "የቅርንጫፍ ማንቂያዎች በመጫን ላይ…",
+    alertCenter: "ማንቂያ ማዕከል",
+    alertDescription:
+      "ለ {branch} የማብቂያ ግፊት፣ ዝቅተኛ እቃ፣ አጠራጣሪ ጉድለት እና የሽያጭ መመለሻ ቀጥታ ክትትል።",
+    thisBranch: "ይህ ቅርንጫፍ",
+    searchPlaceholder: "መድሃኒት፣ ባች ወይም ሽያጭ ይፈልጉ…",
+    totalAlerts: "ጠቅላላ ማንቂያዎች",
+    warning: "ማስጠንቀቂያ",
+    critical: "ከባድ",
+    criticalRisk: "ከባድ አደጋ",
+    immediateReview: "አስቸኳይ ግምገማ ይመከራል",
+    lowStock: "ዝቅተኛ እቃ",
+    recentCountShortages: "የቅርብ ቆጠራ ጉድለቶች",
+    expiryPressure: "የማብቂያ ግፊት",
+    batchesExpired: "አስቀድመው ያለቁ ባቾች",
+    reversalSignals: "የመመለሻ ምልክቶች",
+    suspectedLossEvents: "የተጠረጠሩ የጉድለት ክስተቶች",
+    lowStockMedicines: "ዝቅተኛ እቃ ያላቸው መድሃኒቶች",
+    lowStockDescription: "እንደገና ማስገባት ወይም ቅርብ ቆጠራ ክትትል የሚፈልጉ ባቾች።",
+    openInventory: "እቃ ክፈት",
+    catalogMedicine: "የካታሎግ መድሃኒት",
+    noActiveBatch: "ንቁ ባች የለም",
+    noStock: "እቃ የለም",
+    noLowStockMedicines: "ዝቅተኛ እቃ ያላቸው መድሃኒቶች የሉም",
+    noLowStockDescription: "የእቃ ደረጃዎች አሁን ከቅርንጫፉ የማንቂያ ወሰን በላይ ናቸው።",
+    expiryQueue: "የማብቂያ ወረፋ",
+    expiryQueueDescription: "በቅርቡ መሸጥ፣ ማግለል ወይም ማስተካከል የሚገባቸው ባቾች።",
+    openAdjustments: "ማስተካከያዎችን ክፈት",
+    batchLabel: "ባች",
+    units: "ዩኒቶች",
+    expiryDate: "የማብቂያ ቀን",
+    received: "የተቀበለ",
+    stockValue: "የእቃ ዋጋ",
+    noExpiryAlerts: "የማብቂያ ማንቂያዎች የሉም",
+    noExpiryDescription: "በቅርንጫፉ የማብቂያ ወሰን ውስጥ ያሉ ንቁ ባቾች የሉም።",
+    expired: "አልቋል",
+    expiresToday: "ዛሬ ያልቃል",
+    daysLeft: "{count} ቀን{suffix} ቀርቷል",
+    pluralSuffix: "",
+    lossSignals: "የጉድለት እና ቆጠራ ምልክቶች",
+    lossSignalsDescription: "ባለፉት ሁለት ሳምንታት ውስጥ የተመዘገቡ የእቃ ልዩነቶች እና የመጥፋት ጥርጣሬዎች።",
+    runStockCount: "የእቃ ቆጠራ አሂድ",
+    noLossSignals: "የጉድለት ምልክቶች የሉም",
+    noLossDescription: "ቅርንጫፉ የቅርብ አጠራጣሪ የእቃ ወይም የቆጠራ ጉድለት ማንቂያ የለውም።",
+    recentSaleReversals: "የቅርብ የሽያጭ መመለሻዎች",
+    saleReversalDescription: "የአስተዳዳሪ ክትትል ሊፈልጉ የሚችሉ የተሰረዙ ግብይቶች።",
+    openSales: "ሽያጭን ክፈት",
+    amountUnavailable: "መጠኑ አይገኝም",
+    noSaleReversals: "የሽያጭ መመለሻ የለም",
+    noSaleReversalDescription: "የተሰረዙ ሽያጮች ለአስተዳዳሪ ግምገማ እዚህ ይታያሉ።",
+  },
+  om: {
+    loadingAlerts: "Akeekkachiisonni damee fe'amaa jiru…",
+    alertCenter: "Giddugala Akeekkachiisaa",
+    alertDescription:
+      "To'annoo kallattii gidirfama xumuramuu, kuusaa gadi aanaa, badiinsa shakkisiisaa fi deebii gurgurtaa {branch} keessatti ilaala.",
+    thisBranch: "damee kana",
+    searchPlaceholder: "Qoricha, baachii yookaan gurgurtaa barbaadi…",
+    totalAlerts: "Akeekkachiisota Waliigalaa",
+    warning: "Akeekkachiisa",
+    critical: "Cimaa",
+    criticalRisk: "Balaa Cimaa",
+    immediateReview: "Sakatta'iinsi ariifataa ni gorfama",
+    lowStock: "Kuusaa Gadi Aanaa",
+    recentCountShortages: "hanqina lakkoofsa yeroo dhiyoo",
+    expiryPressure: "Dhiphina Xumuramuu",
+    batchesExpired: "baachiileen xumuraman",
+    reversalSignals: "Mallattoolee Deebii",
+    suspectedLossEvents: "taateewwan badiinsa shakkaman",
+    lowStockMedicines: "Qorichoota kuusaan isaanii gadi bu'e",
+    lowStockDescription: "Baachiilee guutamuu yookaan lakkoofsa dhiyaataa barbaadan.",
+    openInventory: "Kuusaa Bani",
+    catalogMedicine: "Qoricha kaataalogii",
+    noActiveBatch: "Baachiin hojii irra jiru hin jiru",
+    noStock: "Kuusaan hin jiru",
+    noLowStockMedicines: "Qorichi kuusaan isaa gadi bu'e hin jiru",
+    noLowStockDescription: "Sadarkaan kuusaa amma daangaa akeekkachiisaa damee caala.",
+    expiryQueue: "Tarree Xumuramuu",
+    expiryQueueDescription: "Baachiilee dhihoo keessatti gurguramuu, adda baafamuu, yookaan sirreeffamuu qaban.",
+    openAdjustments: "Sirreeffamoota Bani",
+    batchLabel: "Baachii",
+    units: "yuunitii",
+    expiryDate: "Guyyaa Xumuraa",
+    received: "Fudhatame",
+    stockValue: "Gatii Kuusaa",
+    noExpiryAlerts: "Akeekkachiisni xumuramuu hin jiru",
+    noExpiryDescription: "Baachiileen hojii irra jiran daangaa xumuraa damee keessa hin jiran.",
+    expired: "Xumurame",
+    expiresToday: "Har'a xumura",
+    daysLeft: "guyyaa {count} hafe",
+    pluralSuffix: "",
+    lossSignals: "Mallattoolee Badiinsaa fi Lakkoofsaa",
+    lossSignalsDescription: "Wal dhabdee kuusaa fi hanqina shakkamaa torban lama darbani keessatti galmaa'e.",
+    runStockCount: "Lakkoofsa Kuusaa Hojjechiisi",
+    noLossSignals: "Mallattoon badiinsaa hin jiru",
+    noLossDescription: "Dameen kun akeekkachiisa kuusaa shakkisiisaa yookaan hanqina lakkoofsa yeroo dhiyoo hin qabu.",
+    recentSaleReversals: "Deebii Gurgurtaa Yeroo Dhihoo",
+    saleReversalDescription: "Daldala haqaman hordoffii ol'aanaa barbaadu danda'an.",
+    openSales: "Gurgurtaa Bani",
+    amountUnavailable: "Maallaqni hin argamu",
+    noSaleReversals: "Deebiin gurgurtaa hin jiru",
+    noSaleReversalDescription: "Gurgurtaan haqame sakatta'iinsaaf asitti mul'ata.",
+  },
+} as const;

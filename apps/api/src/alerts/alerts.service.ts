@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { AuditAction, Prisma } from "@prisma/client";
+import type { AppLocale } from "../common/i18n/locale";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -21,7 +22,7 @@ export class AlertsService {
     this.prisma = prisma;
   }
 
-  async getOverview(currentUser: AuthenticatedUser) {
+  async getOverview(currentUser: AuthenticatedUser, locale: AppLocale = "en") {
     const branch = await this.resolveBranch(currentUser);
     const nearExpiryCutoff = this.getNearExpiryCutoff();
     const signalWindowStart = this.getSignalWindowStart();
@@ -146,9 +147,13 @@ export class AlertsService {
 
         const metadata = this.asAuditMetadata(log.metadata);
         const quantityDelta = this.toNumber(metadata.quantityDelta);
-        const medicineName = String(metadata.medicineName ?? "Unknown medicine");
-        const batchNumber = String(metadata.batchNumber ?? "N/A");
-        const actor = log.user?.fullName ?? "System";
+        const medicineName = String(
+          metadata.medicineName ?? translateAlert(locale, "unknownMedicine")
+        );
+        const batchNumber = String(
+          metadata.batchNumber ?? translateAlert(locale, "notAvailable")
+        );
+        const actor = log.user?.fullName ?? translateAlert(locale, "system");
 
         if (
           metadata.source === "cycle_count" &&
@@ -158,10 +163,14 @@ export class AlertsService {
             id: log.id,
             type: "COUNT_SHORTAGE" as const,
             severity: "WARNING" as const,
-            title: "Cycle count shortage",
-            description: `${actor} counted ${medicineName} batch ${batchNumber} at ${this.toNumber(
-              metadata.countedQuantity
-            )} units, ${Math.abs(quantityDelta)} below system stock.`,
+            title: translateAlert(locale, "cycleCountShortage.title"),
+            description: translateAlert(locale, "cycleCountShortage.description", {
+              actor,
+              medicineName,
+              batchNumber,
+              countedQuantity: this.toNumber(metadata.countedQuantity),
+              quantityDelta: Math.abs(quantityDelta),
+            }),
             medicineName,
             batchNumber,
             quantityDelta,
@@ -179,9 +188,14 @@ export class AlertsService {
             severity: "CRITICAL" as const,
             title:
               reason === "THEFT_SUSPECTED"
-                ? "Suspicious stock loss"
-                : "Stock loss recorded",
-            description: `${actor} recorded ${Math.abs(quantityDelta)} missing units for ${medicineName} batch ${batchNumber}.`,
+                ? translateAlert(locale, "suspiciousStockLoss.title")
+                : translateAlert(locale, "stockLossRecorded.title"),
+            description: translateAlert(locale, "stockLossRecorded.description", {
+              actor,
+              quantityDelta: Math.abs(quantityDelta),
+              medicineName,
+              batchNumber,
+            }),
             medicineName,
             batchNumber,
             quantityDelta,
@@ -202,17 +216,26 @@ export class AlertsService {
         }
 
         const metadata = this.asAuditMetadata(log.metadata);
-        const actor = log.user?.fullName ?? "System";
+        const actor = log.user?.fullName ?? translateAlert(locale, "system");
 
         return {
           id: log.id,
           type: "SALE_VOIDED" as const,
           severity: "WARNING" as const,
-          title: "Sale reversed",
-          description: `${actor} voided sale ${String(
-            metadata.saleNumber ?? "N/A"
-          )}${metadata.reason ? ` for ${String(metadata.reason)}` : ""}.`,
-          saleNumber: String(metadata.saleNumber ?? "N/A"),
+          title: translateAlert(locale, "saleReversed.title"),
+          description: translateAlert(locale, "saleReversed.description", {
+            actor,
+            saleNumber: String(
+              metadata.saleNumber ?? translateAlert(locale, "notAvailable")
+            ),
+            reason:
+              metadata.reason && typeof metadata.reason === "string"
+                ? translateAlert(locale, "saleReversed.reason", {
+                    reason: String(metadata.reason),
+                  })
+                : "",
+          }),
+          saleNumber: String(metadata.saleNumber ?? translateAlert(locale, "notAvailable")),
           reason:
             typeof metadata.reason === "string" ? metadata.reason : null,
           totalAmount: this.toNullableNumber(metadata.totalAmount),
@@ -378,4 +401,73 @@ export class AlertsService {
   private roundCurrency(value: number) {
     return Number(value.toFixed(2));
   }
+}
+
+const ALERT_MESSAGES: Record<AppLocale, Record<string, string>> = {
+  en: {
+    system: "System",
+    notAvailable: "N/A",
+    unknownMedicine: "Unknown medicine",
+    "cycleCountShortage.title": "Cycle count shortage",
+    "cycleCountShortage.description":
+      "{actor} counted {medicineName} batch {batchNumber} at {countedQuantity} units, {quantityDelta} below system stock.",
+    "suspiciousStockLoss.title": "Suspicious stock loss",
+    "stockLossRecorded.title": "Stock loss recorded",
+    "stockLossRecorded.description":
+      "{actor} recorded {quantityDelta} missing units for {medicineName} batch {batchNumber}.",
+    "saleReversed.title": "Sale reversed",
+    "saleReversed.description":
+      "{actor} voided sale {saleNumber}{reason}.",
+    "saleReversed.reason": " for {reason}",
+  },
+  am: {
+    system: "ሲስተም",
+    notAvailable: "የለም",
+    unknownMedicine: "ያልታወቀ መድሃኒት",
+    "cycleCountShortage.title": "የቆጠራ ጉድለት",
+    "cycleCountShortage.description":
+      "{actor} {medicineName} ባች {batchNumber}ን {countedQuantity} ዩኒት ብሎ ቆጥሯል፣ ከሲስተሙ {quantityDelta} ዩኒት በታች።",
+    "suspiciousStockLoss.title": "አጠራጣሪ የእቃ ጉድለት",
+    "stockLossRecorded.title": "የእቃ ጉድለት ተመዝግቧል",
+    "stockLossRecorded.description":
+      "{actor} ለ {medicineName} ባች {batchNumber} {quantityDelta} የጠፉ ዩኒቶችን መዝግቧል።",
+    "saleReversed.title": "ሽያጭ ተመልሷል",
+    "saleReversed.description":
+      "{actor} ሽያጭ {saleNumber}{reason} ሰርዟል።",
+    "saleReversed.reason": " ምክንያቱም {reason}",
+  },
+  om: {
+    system: "Sirna",
+    notAvailable: "Hin jiru",
+    unknownMedicine: "Qoricha hin beekamne",
+    "cycleCountShortage.title": "Hanqina lakkoofsa kuusaa",
+    "cycleCountShortage.description":
+      "{actor} {medicineName} baachii {batchNumber} yuunitii {countedQuantity} jechuun lakkaa'eera, kunis kan sirnaa irraa {quantityDelta} gadi dha.",
+    "suspiciousStockLoss.title": "Badiinsa kuusaa shakkisiisaa",
+    "stockLossRecorded.title": "Badiinsi kuusaa galmaa'eera",
+    "stockLossRecorded.description":
+      "{actor} {medicineName} baachii {batchNumber}f yuunitii {quantityDelta} dhabaman galmeesseera.",
+    "saleReversed.title": "Gurgurtaan deebi'eera",
+    "saleReversed.description":
+      "{actor} gurgurtaa {saleNumber}{reason} haqeera.",
+    "saleReversed.reason": " sababni isaas {reason}",
+  },
+};
+
+function translateAlert(
+  locale: AppLocale,
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>
+) {
+  const template = ALERT_MESSAGES[locale][key] ?? ALERT_MESSAGES.en[key] ?? key;
+
+  if (!params) {
+    return template;
+  }
+
+  return Object.entries(params).reduce(
+    (result, [param, value]) =>
+      result.replaceAll(`{${param}}`, String(value)),
+    template
+  );
 }

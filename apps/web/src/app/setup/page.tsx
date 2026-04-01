@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { useI18n } from "../i18n/I18nProvider";
 import {
   fetchJson,
   formatError,
@@ -23,6 +25,7 @@ const initialForm = {
 
 export default function SetupPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [form, setForm] = useState(initialForm);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -116,7 +119,7 @@ export default function SetupPage() {
             aria-label="Checking setup status"
           />
           <p className="text-on-surface-variant text-sm font-medium tracking-wide">
-            Checking setup status…
+            {t("common.loading.setupStatus")}
           </p>
         </div>
       </div>
@@ -139,22 +142,21 @@ export default function SetupPage() {
           </div>
 
           <h1 className="text-[2.75rem] font-bold leading-[1.05] tracking-[-0.04em] max-w-xs">
-            Set up your pharmacy in minutes.
+            {t("setup.hero.title")}
           </h1>
 
           <p className="mt-5 text-white/65 text-[0.95rem] leading-[1.75] max-w-[22rem]">
-            Create your pharmacy workspace, first branch, and owner account
-            in one step. Everything is wired to the real API.
+            {t("setup.hero.description")}
           </p>
         </div>
 
         {/* Feature list */}
         <ul className="space-y-3">
           {[
-            "Multi-branch inventory tracking",
-            "Offline-first architecture",
-            "Ethiopian pharmacy compliance",
-            "Role-based access: Owner · Pharmacist · Cashier",
+            t("setup.hero.feature1"),
+            t("setup.hero.feature2"),
+            t("setup.hero.feature3"),
+            t("setup.hero.feature4"),
           ].map((item) => (
             <li
               key={item}
@@ -168,13 +170,17 @@ export default function SetupPage() {
 
         {/* Bottom note */}
         <p className="text-white/35 text-xs mt-10">
-          First-time setup only. Owner credentials are permanent.
+          {t("setup.hero.note")}
         </p>
       </aside>
 
       {/* ── Right form panel ─────────────────────────────────────── */}
       <main className="flex-1 flex items-center justify-center p-8 overflow-y-auto">
         <div className="w-full max-w-[540px]">
+          <div className="mb-6 flex justify-end">
+            <LanguageSwitcher />
+          </div>
+
           {/* Mobile brand */}
           <div className="lg:hidden mb-8">
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold tracking-widest uppercase">
@@ -183,10 +189,10 @@ export default function SetupPage() {
           </div>
 
           <h2 className="text-[1.65rem] font-bold text-on-surface tracking-[-0.025em]">
-            Set up your pharmacy
+            {t("setup.title")}
           </h2>
           <p className="mt-1 text-on-surface-variant text-sm leading-relaxed">
-            Create the first owner account and default branch.
+            {t("setup.subtitle")}
           </p>
 
           <form
@@ -196,26 +202,28 @@ export default function SetupPage() {
             {/* Pharmacy details */}
             <fieldset className="space-y-4">
               <legend className="text-[0.75rem] font-bold tracking-[0.08em] uppercase text-on-surface-variant mb-3">
-                Pharmacy
+                {t("setup.section.pharmacy")}
               </legend>
 
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   label="Pharmacy name"
+                  translatedLabel={t("setup.field.pharmacyName")}
                   id="pharmacyName"
-                  placeholder="PharmaHub Addis"
+                  placeholder={t("setup.placeholder.pharmacyName")}
                   required
                   value={form.pharmacyName}
                   onChange={field("pharmacyName")}
                 />
                 <FormField
                   label="Pharmacy slug"
+                  translatedLabel={t("setup.field.pharmacySlug")}
                   id="pharmacySlug"
-                  placeholder="auto-generated"
+                  placeholder={t("setup.placeholder.pharmacySlug")}
                   value={form.pharmacySlug}
                   onChange={field("pharmacySlug")}
                   readOnly
-                  hint="Auto-generated from name"
+                  hint={t("setup.hint.slug")}
                 />
               </div>
             </fieldset>
@@ -223,21 +231,23 @@ export default function SetupPage() {
             {/* Branch details */}
             <fieldset className="space-y-4">
               <legend className="text-[0.75rem] font-bold tracking-[0.08em] uppercase text-on-surface-variant mb-3">
-                Default Branch
+                {t("setup.section.branch")}
               </legend>
 
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   label="Branch name"
+                  translatedLabel={t("setup.field.branchName")}
                   id="branchName"
-                  placeholder="Main Branch"
+                  placeholder={t("setup.placeholder.branchName")}
                   value={form.branchName}
                   onChange={field("branchName")}
                 />
                 <FormField
                   label="Branch address"
+                  translatedLabel={t("setup.field.branchAddress")}
                   id="branchAddress"
-                  placeholder="Addis Ababa"
+                  placeholder={t("setup.placeholder.branchAddress")}
                   value={form.branchAddress}
                   onChange={field("branchAddress")}
                 />
@@ -247,13 +257,14 @@ export default function SetupPage() {
             {/* Owner details */}
             <fieldset className="space-y-4">
               <legend className="text-[0.75rem] font-bold tracking-[0.08em] uppercase text-on-surface-variant mb-3">
-                Owner Account
+                {t("setup.section.owner")}
               </legend>
 
               <FormField
                 label="Full name"
+                translatedLabel={t("setup.field.ownerName")}
                 id="ownerFullName"
-                placeholder="Abel Tadesse"
+                placeholder={t("setup.placeholder.ownerName")}
                 required
                 value={form.ownerFullName}
                 onChange={field("ownerFullName")}
@@ -262,18 +273,20 @@ export default function SetupPage() {
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   label="Email"
+                  translatedLabel={t("setup.field.ownerEmail")}
                   id="ownerEmail"
                   type="email"
-                  placeholder="owner@pharmahub.et"
+                  placeholder={t("setup.placeholder.ownerEmail")}
                   required
                   value={form.ownerEmail}
                   onChange={field("ownerEmail")}
                 />
                 <FormField
                   label="Password"
+                  translatedLabel={t("setup.field.ownerPassword")}
                   id="ownerPassword"
                   type="password"
-                  placeholder="Min. 8 characters"
+                  placeholder={t("setup.placeholder.ownerPassword")}
                   required
                   minLength={8}
                   value={form.ownerPassword}
@@ -300,17 +313,17 @@ export default function SetupPage() {
                   : "linear-gradient(135deg, #004253, #005b71)",
               }}
             >
-              {isSubmitting ? "Creating pharmacy…" : "Create Pharmacy & Owner"}
+              {isSubmitting ? t("setup.submitting") : t("setup.submit")}
             </button>
           </form>
 
           <p className="mt-6 text-center text-on-surface-variant text-sm">
-            Already set up?{" "}
+            {t("setup.alreadySetup")}{" "}
             <Link
               href="/login"
               className="text-primary font-semibold hover:underline"
             >
-              Sign in
+              {t("setup.signIn")}
             </Link>
           </p>
         </div>
@@ -323,6 +336,7 @@ export default function SetupPage() {
 
 type FormFieldProps = {
   label: string;
+  translatedLabel?: string;
   id: string;
   type?: string;
   placeholder?: string;
@@ -336,6 +350,7 @@ type FormFieldProps = {
 
 function FormField({
   label,
+  translatedLabel,
   id,
   type = "text",
   placeholder,
@@ -353,7 +368,7 @@ function FormField({
           htmlFor={id}
           className="text-[0.75rem] font-bold text-on-surface tracking-[0.01em]"
         >
-          {label}
+          {translatedLabel ?? label}
           {required && <span className="text-on-error-container ml-0.5">*</span>}
         </label>
         {hint && (

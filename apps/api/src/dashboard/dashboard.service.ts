@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { MovementType, Prisma } from "@prisma/client";
+import { getIntlLocale, type AppLocale } from "../common/i18n/locale";
 import { serializeAuditItem } from "../audit/audit.presenter";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import { PrismaService } from "../prisma/prisma.service";
@@ -16,7 +17,7 @@ export class DashboardService {
     this.prisma = prisma;
   }
 
-  async getOverview(currentUser: AuthenticatedUser) {
+  async getOverview(currentUser: AuthenticatedUser, locale: AppLocale = "en") {
     const branch = await this.resolveBranch(currentUser);
     const nearExpiryCutoff = this.getNearExpiryCutoff();
     const trendStart = this.getTrendStart();
@@ -141,9 +142,9 @@ export class DashboardService {
         criticalAlertCount: lowStockCount + nearExpiryBatchCount,
         totalUnitsOnHand,
       },
-      weeklyInventoryValue: this.buildTrendSeries(trendMovements),
+      weeklyInventoryValue: this.buildTrendSeries(trendMovements, locale),
       expiryItems,
-      recentActivity: recentActivity.map((item) => serializeAuditItem(item)),
+      recentActivity: recentActivity.map((item) => serializeAuditItem(item, locale)),
     };
   }
 
@@ -183,7 +184,8 @@ export class DashboardService {
       createdAt: Date;
       quantityDelta: number;
       stockBatch: { sellingPrice: Prisma.Decimal };
-    }>
+    }>,
+    locale: AppLocale
   ) {
     const days = Array.from({ length: WEEK_DAYS }, (_, index) => {
       const date = new Date();
@@ -207,7 +209,9 @@ export class DashboardService {
 
     return days.map((date) => ({
       dayKey: this.toDayKey(date),
-      label: date.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase(),
+      label: date
+        .toLocaleDateString(getIntlLocale(locale), { weekday: "short" })
+        .toUpperCase(),
       value: this.roundCurrency(totals.get(this.toDayKey(date)) ?? 0),
       date: date.toISOString(),
     }));

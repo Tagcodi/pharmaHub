@@ -8,6 +8,11 @@ import { EmptyStateCard } from "../../components/ui/EmptyStateCard";
 import { KpiCard } from "../../components/ui/KpiCard";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { SurfaceCard } from "../../components/ui/SurfaceCard";
+import { useI18n } from "../../i18n/I18nProvider";
+import {
+  formatDate,
+  formatNumber,
+} from "../../i18n/format";
 import {
   TOKEN_KEY,
   fetchJson,
@@ -22,6 +27,8 @@ import {
 
 export default function CycleCountsPage() {
   const router = useRouter();
+  const { locale } = useI18n();
+  const text = COUNTS_COPY[locale] as (typeof COUNTS_COPY)["en"];
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [catalog, setCatalog] = useState<CycleCountCatalogResponse | null>(null);
   const [history, setHistory] = useState<CycleCountsResponse | null>(null);
@@ -181,12 +188,12 @@ export default function CycleCountsPage() {
     }
 
     if (!selectedBatch) {
-      setError("Select a batch before saving a stock count.");
+      setError(text.selectBatchBeforeSave);
       return;
     }
 
     if (!Number.isInteger(parsedCountedQuantity) || parsedCountedQuantity < 0) {
-      setError("Counted quantity must be a whole number greater than or equal to zero.");
+      setError(text.countMustBeWholeNumber);
       return;
     }
 
@@ -206,9 +213,11 @@ export default function CycleCountsPage() {
       });
 
       setSuccessMessage(
-        `${result.medicine.name} batch ${result.batchNumber} counted at ${result.countedQuantity} units (${formatSignedNumber(
-          result.quantityDelta
-        )}).`
+        text.countSavedMessage
+          .replace("{medicine}", result.medicine.name)
+          .replace("{batch}", result.batchNumber)
+          .replace("{count}", formatNumber(result.countedQuantity, locale))
+          .replace("{delta}", formatSignedNumber(result.quantityDelta))
       );
       setNotes("");
       await refreshData();
@@ -220,7 +229,7 @@ export default function CycleCountsPage() {
   }
 
   if (isLoading) {
-    return <AppLoading message="Loading stock counts…" />;
+    return <AppLoading message={text.loadingStockCounts} />;
   }
 
   if (!session) {
@@ -248,32 +257,32 @@ export default function CycleCountsPage() {
       <div className="mx-auto w-full max-w-[1320px] px-8 py-8">
         <div className="mb-7 grid gap-5 xl:grid-cols-5">
           <KpiCard
-            label="Countable Batches"
+            label={text.countableBatches}
             value={String(metrics.totalBatches)}
-            note={`${metrics.totalUnitsOnHand.toLocaleString("en-US")} units in scope`}
+            note={`${formatNumber(metrics.totalUnitsOnHand, locale)} ${text.unitsInScope}`}
           />
           <KpiCard
-            label="Expiring Soon"
+            label={text.expiringSoon}
             value={String(metrics.expiringSoonBatchCount)}
             valueColor="#6e3900"
-            note="Batches needing priority review"
+            note={text.priorityReview}
           />
           <KpiCard
-            label="Low Stock Medicines"
+            label={text.lowStockMedicines}
             value={String(metrics.lowStockMedicineCount)}
             valueColor="#93000a"
-            note="Useful for cycle count focus"
+            note={text.usefulForCycleCountFocus}
           />
           <KpiCard
-            label="Count Events"
+            label={text.countEvents}
             value={String(historyMetrics.countEvents)}
-            note={`${historyMetrics.matchedCount} exact matches`}
+            note={`${formatNumber(historyMetrics.matchedCount, locale)} ${text.exactMatches}`}
           />
           <KpiCard
-            label="Net Variance"
+            label={text.netVariance}
             value={formatSignedNumber(historyMetrics.netVarianceUnits)}
             valueColor={historyMetrics.netVarianceUnits < 0 ? "#93000a" : "#004253"}
-            note={`${historyMetrics.shortageEvents} shortages / ${historyMetrics.overageEvents} overages`}
+            note={`${formatNumber(historyMetrics.shortageEvents, locale)} ${text.shortages} / ${formatNumber(historyMetrics.overageEvents, locale)} ${text.overages}`}
           />
         </div>
 
@@ -297,10 +306,10 @@ export default function CycleCountsPage() {
             >
               <div>
                 <h1 className="text-[2rem] font-bold leading-none tracking-[-0.04em] text-on-surface">
-                  Physical Stock Count
+                  {text.physicalStockCount}
                 </h1>
                 <p className="mt-1 text-sm text-on-surface-variant">
-                  Compare shelf count to system count batch by batch and record the result.
+                  {text.physicalStockCountDescription}
                 </p>
               </div>
 
@@ -322,7 +331,7 @@ export default function CycleCountsPage() {
                 </svg>
                 <input
                   type="search"
-                  placeholder="Search medicine or batch…"
+                  placeholder={text.searchPlaceholder}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   className="h-10 w-full rounded-lg bg-surface-low pl-9 pr-4 text-sm text-on-surface placeholder:text-outline/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -355,34 +364,34 @@ export default function CycleCountsPage() {
                           <p className="mt-1 text-xs text-on-surface-variant">
                             {[batch.genericName, batch.form, batch.strength]
                               .filter(Boolean)
-                              .join(" • ") || "Catalog medicine"}
+                              .join(" • ") || text.catalogMedicine}
                           </p>
                         </div>
 
                         <div className="flex items-center gap-2">
                           {batch.isExpiringSoon ? (
-                            <StatusBadge label="Near expiry" tone="warning" />
+                            <StatusBadge label={text.nearExpiry} tone="warning" />
                           ) : null}
                           <StatusBadge
-                            label={batch.isLowStock ? "Low stock" : "In stock"}
+                            label={batch.isLowStock ? text.lowStock : text.inStock}
                             tone={batch.isLowStock ? "danger" : "success"}
                           />
                         </div>
                       </div>
 
                       <div className="mt-4 grid gap-3 text-xs md:grid-cols-4">
-                        <Metric label="Batch" value={batch.batchNumber} />
+                        <Metric label={text.batch} value={batch.batchNumber} />
                         <Metric
-                          label="System Qty"
-                          value={String(batch.systemQuantity)}
+                          label={text.systemQty}
+                          value={formatNumber(batch.systemQuantity, locale)}
                         />
                         <Metric
-                          label="Medicine Total"
-                          value={String(batch.totalMedicineQuantity)}
+                          label={text.medicineTotal}
+                          value={formatNumber(batch.totalMedicineQuantity, locale)}
                         />
                         <Metric
-                          label="Expiry"
-                          value={formatDate(batch.expiryDate)}
+                          label={text.expiry}
+                          value={formatDate(batch.expiryDate, locale)}
                         />
                       </div>
                     </button>
@@ -393,8 +402,8 @@ export default function CycleCountsPage() {
               <div className="p-6">
                 <EmptyStateCard
                   compact
-                  title="No active batches to count"
-                  description="Receive stock first so the count workflow has live batches to compare."
+                  title={text.noActiveBatchesToCount}
+                  description={text.noActiveBatchesToCountDescription}
                 />
               </div>
             )}
@@ -403,9 +412,9 @@ export default function CycleCountsPage() {
           <div className="space-y-6">
             <SurfaceCard className="p-6">
               <div className="mb-5">
-                <h2 className="text-[1rem] font-bold text-on-surface">Count Entry</h2>
+                <h2 className="text-[1rem] font-bold text-on-surface">{text.countEntry}</h2>
                 <p className="mt-1 text-sm text-on-surface-variant">
-                  Record the quantity physically found on the shelf for the selected batch.
+                  {text.countEntryDescription}
                 </p>
               </div>
 
@@ -418,20 +427,20 @@ export default function CycleCountsPage() {
                           {selectedBatch.medicineName}
                         </p>
                         <p className="mt-1 text-xs text-on-surface-variant">
-                          Batch {selectedBatch.batchNumber} • {formatDate(selectedBatch.expiryDate)}
+                          {text.batch} {selectedBatch.batchNumber} • {formatDate(selectedBatch.expiryDate, locale)}
                         </p>
                       </div>
 
                       <StatusBadge
-                        label={selectedBatch.isExpiringSoon ? "Priority count" : "Ready"}
+                        label={selectedBatch.isExpiringSoon ? text.priorityCount : text.ready}
                         tone={selectedBatch.isExpiringSoon ? "warning" : "success"}
                       />
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-3">
-                      <InfoPair label="System quantity" value={String(selectedBatch.systemQuantity)} />
+                      <InfoPair label={text.systemQuantity} value={formatNumber(selectedBatch.systemQuantity, locale)} />
                       <InfoPair
-                        label="Variance preview"
+                        label={text.variancePreview}
                         value={formatSignedNumber(variance)}
                       />
                     </div>
@@ -440,26 +449,26 @@ export default function CycleCountsPage() {
                   <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
                     <label className="block">
                       <span className="mb-2 block text-sm font-semibold text-on-surface">
-                        Counted quantity
+                        {text.countedQuantity}
                       </span>
                       <input
                         value={countedQuantity}
                         onChange={(event) => setCountedQuantity(event.target.value)}
                         className="h-11 w-full rounded-lg border border-outline/10 bg-surface-low px-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        placeholder="0"
+                        placeholder={text.zero}
                       />
                     </label>
 
                     <label className="block">
                       <span className="mb-2 block text-sm font-semibold text-on-surface">
-                        Notes
+                        {text.notes}
                       </span>
                       <textarea
                         value={notes}
                         onChange={(event) => setNotes(event.target.value)}
                         rows={3}
                         className="w-full rounded-lg border border-outline/10 bg-surface-low px-3 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        placeholder="Optional count notes or shelf location details."
+                        placeholder={text.notesPlaceholder}
                       />
                     </label>
 
@@ -469,24 +478,24 @@ export default function CycleCountsPage() {
                       className="flex h-11 w-full items-center justify-center rounded-lg text-sm font-bold text-white disabled:opacity-60"
                       style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
                     >
-                      {isSubmitting ? "Saving count…" : "Save Count"}
+                      {isSubmitting ? text.savingCount : text.saveCount}
                     </button>
                   </form>
                 </>
               ) : (
                 <EmptyStateCard
                   compact
-                  title="Select a batch first"
-                  description="Choose a batch from the left so we can compare physical stock to the system quantity."
+                  title={text.selectBatchFirst}
+                  description={text.selectBatchFirstDescription}
                 />
               )}
             </SurfaceCard>
 
             <SurfaceCard className="p-6">
               <div className="mb-5">
-                <h2 className="text-[1rem] font-bold text-on-surface">Recent Counts</h2>
+                <h2 className="text-[1rem] font-bold text-on-surface">{text.recentCounts}</h2>
                 <p className="mt-1 text-sm text-on-surface-variant">
-                  Latest physical count records captured for this branch.
+                  {text.recentCountsDescription}
                 </p>
               </div>
 
@@ -503,16 +512,16 @@ export default function CycleCountsPage() {
                             {item.medicineName}
                           </p>
                           <p className="mt-1 text-xs text-on-surface-variant">
-                            Batch {item.batchNumber} • {item.createdBy}
+                            {text.batch} {item.batchNumber} • {item.createdBy}
                           </p>
                         </div>
                         <StatusBadge
                           label={
                             item.varianceType === "MATCH"
-                              ? "Match"
+                              ? text.match
                               : item.varianceType === "SHORTAGE"
-                                ? "Shortage"
-                                : "Overage"
+                                ? text.shortage
+                                : text.overage
                           }
                           tone={
                             item.varianceType === "MATCH"
@@ -525,7 +534,7 @@ export default function CycleCountsPage() {
                       </div>
 
                       <p className="mt-3 text-xs text-on-surface-variant">
-                        System {item.previousQuantity} → Counted {item.countedQuantity} (
+                        {text.system} {formatNumber(item.previousQuantity, locale)} → {text.counted} {formatNumber(item.countedQuantity, locale)} (
                         {formatSignedNumber(item.quantityDelta)})
                       </p>
                     </div>
@@ -534,8 +543,8 @@ export default function CycleCountsPage() {
               ) : (
                 <EmptyStateCard
                   compact
-                  title="No cycle counts yet"
-                  description="Saved counts will appear here so supervisors can review the latest variance decisions."
+                  title={text.noCycleCountsYet}
+                  description={text.noCycleCountsYetDescription}
                 />
               )}
             </SurfaceCard>
@@ -566,14 +575,176 @@ function InfoPair({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 function formatSignedNumber(value: number) {
   return `${value > 0 ? "+" : ""}${value}`;
 }
+
+const COUNTS_COPY = {
+  en: {
+    loadingStockCounts: "Loading stock counts…",
+    selectBatchBeforeSave: "Select a batch before saving a stock count.",
+    countMustBeWholeNumber:
+      "Counted quantity must be a whole number greater than or equal to zero.",
+    countSavedMessage:
+      "{medicine} batch {batch} counted at {count} units ({delta}).",
+    countableBatches: "Countable Batches",
+    unitsInScope: "units in scope",
+    expiringSoon: "Expiring Soon",
+    priorityReview: "Batches needing priority review",
+    lowStockMedicines: "Low Stock Medicines",
+    usefulForCycleCountFocus: "Useful for cycle count focus",
+    countEvents: "Count Events",
+    exactMatches: "exact matches",
+    netVariance: "Net Variance",
+    shortages: "shortages",
+    overages: "overages",
+    physicalStockCount: "Physical Stock Count",
+    physicalStockCountDescription:
+      "Compare shelf count to system count batch by batch and record the result.",
+    searchPlaceholder: "Search medicine or batch…",
+    catalogMedicine: "Catalog medicine",
+    nearExpiry: "Near expiry",
+    lowStock: "Low stock",
+    inStock: "In stock",
+    batch: "Batch",
+    systemQty: "System Qty",
+    medicineTotal: "Medicine Total",
+    expiry: "Expiry",
+    noActiveBatchesToCount: "No active batches to count",
+    noActiveBatchesToCountDescription:
+      "Receive stock first so the count workflow has live batches to compare.",
+    countEntry: "Count Entry",
+    countEntryDescription:
+      "Record the quantity physically found on the shelf for the selected batch.",
+    priorityCount: "Priority count",
+    ready: "Ready",
+    systemQuantity: "System quantity",
+    variancePreview: "Variance preview",
+    countedQuantity: "Counted quantity",
+    zero: "0",
+    notes: "Notes",
+    notesPlaceholder: "Optional count notes or shelf location details.",
+    savingCount: "Saving count…",
+    saveCount: "Save Count",
+    selectBatchFirst: "Select a batch first",
+    selectBatchFirstDescription:
+      "Choose a batch from the left so we can compare physical stock to the system quantity.",
+    recentCounts: "Recent Counts",
+    recentCountsDescription:
+      "Latest physical count records captured for this branch.",
+    match: "Match",
+    shortage: "Shortage",
+    overage: "Overage",
+    system: "System",
+    counted: "Counted",
+    noCycleCountsYet: "No cycle counts yet",
+    noCycleCountsYetDescription:
+      "Saved counts will appear here so supervisors can review the latest variance decisions.",
+  },
+  am: {
+    loadingStockCounts: "የእቃ ቆጠራዎች በመጫን ላይ…",
+    selectBatchBeforeSave: "የእቃ ቆጠራ ከማስቀመጥዎ በፊት ባች ይምረጡ።",
+    countMustBeWholeNumber: "የተቆጠረው ብዛት ከዜሮ በላይ ወይም እኩል የሆነ ሙሉ ቁጥር መሆን አለበት።",
+    countSavedMessage: "{medicine} ባች {batch} በ {count} ዩኒት ተቆጥሯል ({delta})።",
+    countableBatches: "ሊቆጠሩ የሚችሉ ባቾች",
+    unitsInScope: "በክልሉ ውስጥ ያሉ ዩኒቶች",
+    expiringSoon: "በቅርቡ የሚያልቁ",
+    priorityReview: "ቅድሚያ ግምገማ የሚፈልጉ ባቾች",
+    lowStockMedicines: "ዝቅተኛ እቃ ያላቸው መድሃኒቶች",
+    usefulForCycleCountFocus: "ለቆጠራ ትኩረት የሚጠቅም",
+    countEvents: "የቆጠራ ክስተቶች",
+    exactMatches: "ትክክለኛ ግጥሞች",
+    netVariance: "የተጣራ ልዩነት",
+    shortages: "ጉድለቶች",
+    overages: "ተጨማሪዎች",
+    physicalStockCount: "የአካል እቃ ቆጠራ",
+    physicalStockCountDescription: "የሸልፍ ቆጠራን ከሲስተሙ ቆጠራ ጋር በባች ያነጻጽሩ እና ውጤቱን ይመዝግቡ።",
+    searchPlaceholder: "መድሃኒት ወይም ባች ይፈልጉ…",
+    catalogMedicine: "የካታሎግ መድሃኒት",
+    nearExpiry: "በቅርብ ማብቂያ",
+    lowStock: "ዝቅተኛ እቃ",
+    inStock: "በእቃ ላይ ያለ",
+    batch: "ባች",
+    systemQty: "የሲስተም ብዛት",
+    medicineTotal: "የመድሃኒቱ ጠቅላላ",
+    expiry: "ማብቂያ",
+    noActiveBatchesToCount: "ለመቆጠር ንቁ ባቾች የሉም",
+    noActiveBatchesToCountDescription: "የቆጠራ ስርዓቱ እውነተኛ ባቾችን እንዲያነጻጽር መጀመሪያ እቃ ይቀበሉ።",
+    countEntry: "የቆጠራ ግቤት",
+    countEntryDescription: "ለተመረጠው ባች በሸልፍ ላይ በአካል የተገኘውን ብዛት ይመዝግቡ።",
+    priorityCount: "ቅድሚያ ቆጠራ",
+    ready: "ዝግጁ",
+    systemQuantity: "የሲስተም ብዛት",
+    variancePreview: "የልዩነት ቅድመ እይታ",
+    countedQuantity: "የተቆጠረ ብዛት",
+    zero: "0",
+    notes: "ማስታወሻዎች",
+    notesPlaceholder: "አማራጭ የቆጠራ ማስታወሻዎች ወይም የሸልፍ ቦታ ዝርዝሮች።",
+    savingCount: "ቆጠራው በማስቀመጥ ላይ…",
+    saveCount: "ቆጠራውን አስቀምጥ",
+    selectBatchFirst: "መጀመሪያ ባች ይምረጡ",
+    selectBatchFirstDescription: "የአካል እቃን ከሲስተሙ ብዛት ጋር ለማነጻጸር ከግራው ያለውን ባች ይምረጡ።",
+    recentCounts: "የቅርብ ቆጠራዎች",
+    recentCountsDescription: "ለዚህ ቅርንጫፍ የተመዘገቡ የቅርብ የአካል ቆጠራ መዝገቦች።",
+    match: "ተዛማጅ",
+    shortage: "ጉድለት",
+    overage: "ተጨማሪ",
+    system: "ሲስተም",
+    counted: "የተቆጠረ",
+    noCycleCountsYet: "የዙር ቆጠራ እስካሁን የለም",
+    noCycleCountsYetDescription: "የተቀመጡ ቆጠራዎች ተቆጣጣሪዎች የቅርብ የልዩነት ውሳኔዎችን እንዲገምግሙ እዚህ ይታያሉ።",
+  },
+  om: {
+    loadingStockCounts: "Lakkoofsawwan kuusaa fe'amaa jiru…",
+    selectBatchBeforeSave: "Lakkoofsa kuusaa olkaa'uu dura baachii filadhu.",
+    countMustBeWholeNumber: "Baay'inni lakkaa'ame guutuu lakkoofsa ta'uu qaba, zeeroo ol yookaan wal qixa.",
+    countSavedMessage: "{medicine} baachiin {batch} yuunitii {count}n lakkaa'ameera ({delta}).",
+    countableBatches: "Baachiiwwan Lakkaa'amoo",
+    unitsInScope: "yuunitii daangaa keessatti",
+    expiringSoon: "Dhihootti Xumuramu",
+    priorityReview: "Baachiiwwan ilaalcha dursa barbaadan",
+    lowStockMedicines: "Qorichoota Kuusaan Gadi Aanaa",
+    usefulForCycleCountFocus: "Xiyyeeffannoo lakkoofsaaf ni gargaara",
+    countEvents: "Taateewwan Lakkoofsaa",
+    exactMatches: "wal qabsiisni sirrii",
+    netVariance: "Garaagarummaa Saafaa",
+    shortages: "hanqinoota",
+    overages: "dabalata",
+    physicalStockCount: "Lakkoofsa Kuusaa Qaamaa",
+    physicalStockCountDescription: "Lakkoofsa rafuu irraa kan qaamaa fi kan sirnaa baachii baachiidhaan wal bira qabi, bu'aas galmeessi.",
+    searchPlaceholder: "Qoricha yookaan baachii barbaadi…",
+    catalogMedicine: "Qoricha kaataalogii",
+    nearExpiry: "Xumuramuu Dhiyaataa",
+    lowStock: "Kuusaa Gadi Aanaa",
+    inStock: "Kuusaa keessa jira",
+    batch: "Baachii",
+    systemQty: "Baay'ina Sirnaa",
+    medicineTotal: "Waliigala Qorichaa",
+    expiry: "Xumuramuu",
+    noActiveBatchesToCount: "Baachiiwwan hojii irra jiran lakkaa'amu hin jiran",
+    noActiveBatchesToCountDescription: "Lakkoofsi kun baachiiwwan dhugaa wal bira qabuuf dura kuusaa fudhadhu.",
+    countEntry: "Galmee Lakkoofsaa",
+    countEntryDescription: "Baay'ina baachii filatameef rafuu irratti qaamaan argame galmeessi.",
+    priorityCount: "Lakkoofsa dursa",
+    ready: "Qophaa'eera",
+    systemQuantity: "Baay'ina sirnaa",
+    variancePreview: "Agarsiisa dura garaagarummaa",
+    countedQuantity: "Baay'ina lakkaa'ame",
+    zero: "0",
+    notes: "Yaadannoowwan",
+    notesPlaceholder: "Yaadannoo lakkoofsaa yookaan iddoo rafuu filannoo.",
+    savingCount: "Lakkoofsi olkaa'amaa jira…",
+    saveCount: "Lakkoofsa Olkaa'i",
+    selectBatchFirst: "Dursee baachii filadhu",
+    selectBatchFirstDescription: "Baachii keessaa tokko filachuun kuusaa qaamaa fi baay'ina sirnaa wal bira qabna.",
+    recentCounts: "Lakkoofsawwan Yeroo Dhihoo",
+    recentCountsDescription: "Galmeewwan lakkoofsa qaamaa yeroo dhiyoo damee kanaaf qabaman.",
+    match: "Wal fakkaata",
+    shortage: "Hanqina",
+    overage: "Dabalata",
+    system: "Sirna",
+    counted: "Lakkaa'ame",
+    noCycleCountsYet: "Ammaaf lakkoofsi cycle hin jiru",
+    noCycleCountsYetDescription: "Lakkoofsawwan olkaa'aman asitti mul'atu, hoggantoonni murtee garaagarummaa yeroo dhiyoo akka ilaalan.",
+  },
+} as const;

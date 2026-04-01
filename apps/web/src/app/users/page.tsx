@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../components/AppShell";
+import { useI18n } from "../i18n/I18nProvider";
+import { formatDateTime } from "../i18n/format";
 import {
   fetchJson,
   formatError,
@@ -34,6 +36,8 @@ const initialForm = {
 
 export default function UsersPage() {
   const router = useRouter();
+  const { locale } = useI18n();
+  const text = USERS_COPY[locale] as (typeof USERS_COPY)["en"];
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [users, setUsers] = useState<PharmacyUser[]>([]);
   const [form, setForm] = useState(initialForm);
@@ -130,7 +134,9 @@ export default function UsersPage() {
       });
 
       setForm(initialForm);
-      setSuccessMsg(`${form.role.toLowerCase()} account created successfully.`);
+      setSuccessMsg(
+        text.createSuccess.replace("{role}", formatRole(form.role, text))
+      );
       await reloadUsers();
     } catch (err) {
       setError(formatError(err));
@@ -159,7 +165,12 @@ export default function UsersPage() {
       });
 
       setSuccessMsg(
-        `${user.fullName} was ${isActive ? "reactivated" : "deactivated"} successfully.`
+        text.statusSuccess
+          .replace("{name}", user.fullName)
+          .replace(
+            "{action}",
+            isActive ? text.reactivated.toLowerCase() : text.deactivated.toLowerCase()
+          )
       );
       await reloadUsers();
     } catch (err) {
@@ -181,10 +192,10 @@ export default function UsersPage() {
           <div
             className="w-10 h-10 rounded-full border-4 border-surface-high border-t-primary animate-spin-loader"
             role="status"
-            aria-label="Loading users"
+            aria-label={text.loadingUsers}
           />
           <p className="text-on-surface-variant text-sm font-medium">
-            Loading staff management…
+            {text.loadingStaffManagement}
           </p>
         </div>
       </div>
@@ -208,28 +219,28 @@ export default function UsersPage() {
       <div className="px-8 py-8 max-w-[1200px] mx-auto w-full">
         <div className="mb-10">
           <p className="text-[0.75rem] font-bold tracking-[0.08em] uppercase text-outline mb-2">
-            Staff Management
+            {text.staffManagement}
           </p>
           <h1 className="text-[2.75rem] font-bold text-on-surface tracking-[-0.04em] leading-none">
-            Manage pharmacy users.
+            {text.manageUsers}
           </h1>
           <p className="mt-2 text-on-surface-variant text-base">
-            Create pharmacist and cashier accounts for {session.pharmacy.name}.
+            {text.createAccounts.replace("{pharmacy}", session.pharmacy.name)}
           </p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <StatCard label="Total Staff" value={String(users.length)} note="Active directory" />
-          <StatCard label="Owners" value={String(ownerCount)} note="Protected accounts" />
+          <StatCard label={text.totalStaff} value={String(users.length)} note={text.activeDirectory} />
+          <StatCard label={text.owners} value={String(ownerCount)} note={text.protectedAccounts} />
           <StatCard
-            label="Pharmacists"
+            label={text.pharmacists}
             value={String(pharmacistCount)}
-            note="Can dispense medicines"
+            note={text.canDispense}
           />
           <StatCard
-            label="Cashiers"
+            label={text.cashiers}
             value={String(cashierCount)}
-            note="Counter access"
+            note={text.counterAccess}
           />
         </div>
 
@@ -241,14 +252,14 @@ export default function UsersPage() {
             <div className="flex items-center justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-[1.1rem] font-bold text-on-surface">
-                  Team directory
+                  {text.teamDirectory}
                 </h2>
                 <p className="text-on-surface-variant text-sm mt-1">
-                  Owner-only access to staff accounts and branch assignments.
+                  {text.ownerOnlyDirectory}
                 </p>
               </div>
               <div className="px-3 py-1.5 rounded-full bg-surface-low text-outline text-xs font-bold tracking-widest uppercase">
-                Owner only
+                {text.ownerOnly}
               </div>
             </div>
 
@@ -275,9 +286,9 @@ export default function UsersPage() {
                     <path d="M4 16c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="#70787d" strokeWidth="1.5" strokeLinecap="round" />
                   </svg>
                 </div>
-                <p className="text-on-surface font-semibold text-sm">No staff accounts yet</p>
+                <p className="text-on-surface font-semibold text-sm">{text.noStaffAccounts}</p>
                 <p className="text-on-surface-variant text-xs max-w-[240px] text-center leading-relaxed">
-                  Create pharmacist and cashier accounts using the form. Staff inherit your current branch by default.
+                  {text.noStaffDescription}
                 </p>
               </div>
             ) : (
@@ -285,12 +296,12 @@ export default function UsersPage() {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-surface-low text-outline text-[0.7rem] uppercase tracking-[0.08em]">
-                      <th className="px-4 py-3 font-bold">User</th>
-                      <th className="px-4 py-3 font-bold">Role</th>
-                      <th className="px-4 py-3 font-bold">Branch</th>
-                      <th className="px-4 py-3 font-bold">Last login</th>
-                      <th className="px-4 py-3 font-bold">Status</th>
-                      <th className="px-4 py-3 font-bold">Actions</th>
+                      <th className="px-4 py-3 font-bold">{text.user}</th>
+                      <th className="px-4 py-3 font-bold">{text.role}</th>
+                      <th className="px-4 py-3 font-bold">{text.branch}</th>
+                      <th className="px-4 py-3 font-bold">{text.lastLogin}</th>
+                      <th className="px-4 py-3 font-bold">{text.status}</th>
+                      <th className="px-4 py-3 font-bold">{text.actions}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -306,7 +317,7 @@ export default function UsersPage() {
                           </p>
                         </td>
                         <td className="px-4 py-4 align-top">
-                          <RoleChip role={user.role} />
+                          <RoleChip role={user.role} text={text} />
                         </td>
                         <td className="px-4 py-4 align-top text-on-surface-variant text-sm">
                           {user.branch ? (
@@ -317,14 +328,14 @@ export default function UsersPage() {
                               <p className="mt-1">{user.branch.code}</p>
                             </>
                           ) : (
-                            "Unassigned"
+                            text.unassigned
                           )}
                         </td>
                         <td className="px-4 py-4 align-top text-on-surface-variant text-sm">
-                          {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "Never"}
+                          {user.lastLoginAt ? formatDateTime(user.lastLoginAt, locale) : text.never}
                         </td>
                         <td className="px-4 py-4 align-top">
-                          <StatusChip isActive={user.isActive} />
+                          <StatusChip isActive={user.isActive} text={text} />
                         </td>
                         <td className="px-4 py-4 align-top">
                           {user.role !== "OWNER" ? (
@@ -340,14 +351,14 @@ export default function UsersPage() {
                               ].join(" ")}
                             >
                               {isTogglingUserId === user.id
-                                ? "Saving…"
+                                ? text.saving
                                 : user.isActive
-                                  ? "Deactivate"
-                                  : "Reactivate"}
+                                  ? text.deactivate
+                                  : text.reactivate}
                             </button>
                           ) : (
                             <span className="text-xs font-semibold uppercase tracking-[0.08em] text-outline">
-                              Protected
+                              {text.protected}
                             </span>
                           )}
                         </td>
@@ -364,35 +375,35 @@ export default function UsersPage() {
             style={{ boxShadow: "0 4px 16px rgba(0,66,83,0.06)" }}
           >
             <h3 className="text-[1rem] font-bold text-on-surface">
-              Create staff account
+              {text.createStaffAccount}
             </h3>
             <p className="text-on-surface-variant text-sm mt-1 mb-6">
-              New accounts inherit your current branch unless branch assignment is added later.
+              {text.newAccountsDescription}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <FormField
                 id="fullName"
-                label="Full name"
-                placeholder="Saron Bekele"
+                label={text.fullName}
+                placeholder={text.fullNamePlaceholder}
                 required
                 value={form.fullName}
                 onChange={field("fullName")}
               />
               <FormField
                 id="email"
-                label="Email"
+                label={text.email}
                 type="email"
-                placeholder="staff@pharmahub.et"
+                placeholder={text.emailPlaceholder}
                 required
                 value={form.email}
                 onChange={field("email")}
               />
               <FormField
                 id="password"
-                label="Temporary password"
+                label={text.temporaryPassword}
                 type="password"
-                placeholder="Min. 8 characters"
+                placeholder={text.passwordPlaceholder}
                 required
                 minLength={8}
                 value={form.password}
@@ -404,7 +415,7 @@ export default function UsersPage() {
                   htmlFor="role"
                   className="text-[0.75rem] font-bold text-on-surface tracking-[0.01em]"
                 >
-                  Role <span className="text-on-error-container ml-0.5">*</span>
+                  {text.role} <span className="text-on-error-container ml-0.5">*</span>
                 </label>
                 <select
                   id="role"
@@ -413,8 +424,8 @@ export default function UsersPage() {
                   className="h-11 px-4 rounded-lg bg-surface-lowest text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow"
                   style={{ boxShadow: "0 1px 4px rgba(0,66,83,0.06)" }}
                 >
-                  <option value="PHARMACIST">Pharmacist</option>
-                  <option value="CASHIER">Cashier</option>
+                  <option value="PHARMACIST">{text.pharmacist}</option>
+                  <option value="CASHIER">{text.cashier}</option>
                 </select>
               </div>
 
@@ -428,7 +439,7 @@ export default function UsersPage() {
                     : "linear-gradient(135deg, #004253, #005b71)",
                 }}
               >
-                {isSubmitting ? "Creating account…" : "Create Staff Account"}
+                {isSubmitting ? text.creatingAccount : text.createStaffAccountButton}
               </button>
             </form>
           </section>
@@ -463,7 +474,13 @@ function StatCard({
   );
 }
 
-function RoleChip({ role }: { role: string }) {
+function RoleChip({
+  role,
+  text,
+}: {
+  role: string;
+  text: (typeof USERS_COPY)["en"];
+}) {
   const styles =
     role === "OWNER"
       ? "bg-secondary-container text-on-secondary-container"
@@ -473,12 +490,18 @@ function RoleChip({ role }: { role: string }) {
 
   return (
     <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold tracking-wide ${styles}`}>
-      {role.toLowerCase()}
+      {formatRole(role, text)}
     </span>
   );
 }
 
-function StatusChip({ isActive }: { isActive: boolean }) {
+function StatusChip({
+  isActive,
+  text,
+}: {
+  isActive: boolean;
+  text: (typeof USERS_COPY)["en"];
+}) {
   return (
     <span
       className={`inline-flex px-3 py-1 rounded-full text-xs font-bold tracking-wide ${
@@ -487,7 +510,7 @@ function StatusChip({ isActive }: { isActive: boolean }) {
           : "bg-error-container text-on-error-container"
       }`}
     >
-      {isActive ? "active" : "inactive"}
+      {isActive ? text.active : text.inactive}
     </span>
   );
 }
@@ -534,10 +557,176 @@ function FormField({
     </div>
   );
 }
+function formatRole(role: string, text: (typeof USERS_COPY)["en"]) {
+  if (role === "OWNER") {
+    return text.owner;
+  }
 
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  if (role === "PHARMACIST") {
+    return text.pharmacist;
+  }
+
+  return text.cashier;
 }
+
+const USERS_COPY = {
+  en: {
+    loadingUsers: "Loading users",
+    loadingStaffManagement: "Loading staff management…",
+    staffManagement: "Staff Management",
+    manageUsers: "Manage pharmacy users.",
+    createAccounts: "Create pharmacist and cashier accounts for {pharmacy}.",
+    totalStaff: "Total Staff",
+    activeDirectory: "Active directory",
+    owners: "Owners",
+    protectedAccounts: "Protected accounts",
+    pharmacists: "Pharmacists",
+    canDispense: "Can dispense medicines",
+    cashiers: "Cashiers",
+    counterAccess: "Counter access",
+    teamDirectory: "Team directory",
+    ownerOnlyDirectory: "Owner-only access to staff accounts and branch assignments.",
+    ownerOnly: "Owner only",
+    noStaffAccounts: "No staff accounts yet",
+    noStaffDescription:
+      "Create pharmacist and cashier accounts using the form. Staff inherit your current branch by default.",
+    user: "User",
+    role: "Role",
+    branch: "Branch",
+    lastLogin: "Last login",
+    status: "Status",
+    actions: "Actions",
+    unassigned: "Unassigned",
+    never: "Never",
+    saving: "Saving…",
+    deactivate: "Deactivate",
+    reactivate: "Reactivate",
+    protected: "Protected",
+    createStaffAccount: "Create staff account",
+    newAccountsDescription:
+      "New accounts inherit your current branch unless branch assignment is added later.",
+    fullName: "Full name",
+    fullNamePlaceholder: "Saron Bekele",
+    email: "Email",
+    emailPlaceholder: "staff@pharmahub.et",
+    temporaryPassword: "Temporary password",
+    passwordPlaceholder: "Min. 8 characters",
+    pharmacist: "Pharmacist",
+    cashier: "Cashier",
+    owner: "Owner",
+    creatingAccount: "Creating account…",
+    createStaffAccountButton: "Create Staff Account",
+    active: "Active",
+    inactive: "Inactive",
+    createSuccess: "{role} account created successfully.",
+    statusSuccess: "{name} was {action} successfully.",
+    reactivated: "Reactivated",
+    deactivated: "Deactivated",
+  },
+  am: {
+    loadingUsers: "ተጠቃሚዎች በመጫን ላይ",
+    loadingStaffManagement: "የሰራተኛ አስተዳደር በመጫን ላይ…",
+    staffManagement: "የሰራተኛ አስተዳደር",
+    manageUsers: "የፋርማሲ ተጠቃሚዎችን ያስተዳድሩ።",
+    createAccounts: "ለ {pharmacy} የፋርማሲስት እና የካሽየር መለያዎችን ይፍጠሩ።",
+    totalStaff: "ጠቅላላ ሰራተኞች",
+    activeDirectory: "ንቁ ዝርዝር",
+    owners: "ባለቤቶች",
+    protectedAccounts: "የተጠበቁ መለያዎች",
+    pharmacists: "ፋርማሲስቶች",
+    canDispense: "መድሃኒት ማቅረብ ይችላሉ",
+    cashiers: "ካሽየሮች",
+    counterAccess: "የካውንተር መዳረሻ",
+    teamDirectory: "የቡድን ዝርዝር",
+    ownerOnlyDirectory: "ለሰራተኛ መለያዎች እና ለቅርንጫፍ መደበኞች የባለቤት ብቻ መዳረሻ።",
+    ownerOnly: "ለባለቤት ብቻ",
+    noStaffAccounts: "እስካሁን የሰራተኛ መለያዎች የሉም",
+    noStaffDescription:
+      "ቅጹን በመጠቀም የፋርማሲስት እና የካሽየር መለያዎችን ይፍጠሩ። ሰራተኞች በነባሪ የአሁኑን ቅርንጫፍ ይወርሳሉ።",
+    user: "ተጠቃሚ",
+    role: "ሚና",
+    branch: "ቅርንጫፍ",
+    lastLogin: "የመጨረሻ መግቢያ",
+    status: "ሁኔታ",
+    actions: "እርምጃዎች",
+    unassigned: "አልተመደበም",
+    never: "አይተከሰተም",
+    saving: "በማስቀመጥ ላይ…",
+    deactivate: "አቦዝን",
+    reactivate: "እንደገና አንቃ",
+    protected: "የተጠበቀ",
+    createStaffAccount: "የሰራተኛ መለያ ፍጠር",
+    newAccountsDescription:
+      "አዲስ መለያዎች በኋላ የቅርንጫፍ መደበኛ ካልተጨመረ በቀር የአሁኑን ቅርንጫፍ ይወርሳሉ።",
+    fullName: "ሙሉ ስም",
+    fullNamePlaceholder: "ሳሮን በቀለ",
+    email: "ኢሜይል",
+    emailPlaceholder: "staff@pharmahub.et",
+    temporaryPassword: "ጊዜያዊ የይለፍ ቃል",
+    passwordPlaceholder: "ቢያንስ 8 ቁምፊዎች",
+    pharmacist: "ፋርማሲስት",
+    cashier: "ካሽየር",
+    owner: "ባለቤት",
+    creatingAccount: "መለያ በመፍጠር ላይ…",
+    createStaffAccountButton: "የሰራተኛ መለያ ፍጠር",
+    active: "ንቁ",
+    inactive: "የቦዘነ",
+    createSuccess: "{role} መለያ በተሳካ ሁኔታ ተፈጥሯል።",
+    statusSuccess: "{name} በተሳካ ሁኔታ {action}።",
+    reactivated: "እንደገና ተንቅቷል",
+    deactivated: "ተቦዝኗል",
+  },
+  om: {
+    loadingUsers: "Fayyadamtoonni fe'amaa jiru",
+    loadingStaffManagement: "Bulchiinsi hojjettootaa fe'amaa jira…",
+    staffManagement: "Bulchiinsa Hojjettootaa",
+    manageUsers: "Fayyadamtoota farmasii bulchi.",
+    createAccounts: "Herrega farmaasistii fi kaashiyerii {pharmacy}f uumi.",
+    totalStaff: "Hojjettoota Waliigalaa",
+    activeDirectory: "Tarree hojii irra jiru",
+    owners: "Abbootii qabeenyaa",
+    protectedAccounts: "Herregoota eegamoo",
+    pharmacists: "Farmaasistoota",
+    canDispense: "Qoricha kennuu danda'u",
+    cashiers: "Kaashiyeroota",
+    counterAccess: "Seensa kaawuntarii",
+    teamDirectory: "Tarree garee",
+    ownerOnlyDirectory: "Seensa abbaa qabeenyaa qofa herrega hojjettootaa fi ramaddii dameef.",
+    ownerOnly: "Abbaa qabeenya qofa",
+    noStaffAccounts: "Herregni hojjettootaa hin jiru",
+    noStaffDescription:
+      "Furmaata kanaan herrega farmaasistii fi kaashiyerii uumi. Hojjettoonni damee amma jiru ofumaan argatu.",
+    user: "Fayyadamaa",
+    role: "Gahee",
+    branch: "Damee",
+    lastLogin: "Seensa dhumaa",
+    status: "Haala",
+    actions: "Tarkaanfiiwwan",
+    unassigned: "Hin ramadamin",
+    never: "Matumaa",
+    saving: "Olkaa'amaa jira…",
+    deactivate: "Dhaabi",
+    reactivate: "Deebisii banuu",
+    protected: "Eegamaa",
+    createStaffAccount: "Herrega hojjetaa uumi",
+    newAccountsDescription:
+      "Herregoonni haaraan ramaddiin damee booda yoo hin dabalamin damee ammaa dhaalu.",
+    fullName: "Maqaa guutuu",
+    fullNamePlaceholder: "Saron Bekele",
+    email: "Imeelii",
+    emailPlaceholder: "staff@pharmahub.et",
+    temporaryPassword: "Jecha darbii yeroo",
+    passwordPlaceholder: "Qubee 8 ol",
+    pharmacist: "Farmaasistii",
+    cashier: "Kaashiyerii",
+    owner: "Abbaa qabeenyaa",
+    creatingAccount: "Herregni uumamaa jira…",
+    createStaffAccountButton: "Herrega Hojjetaa Uumi",
+    active: "Hojii irra",
+    inactive: "Hojii ala",
+    createSuccess: "Herregni {role} milkaa'inaan uumameera.",
+    statusSuccess: "{name} milkaa'inaan {action}.",
+    reactivated: "deebi'ee hojii irra ooleera",
+    deactivated: "dhaabbateera",
+  },
+} as const;

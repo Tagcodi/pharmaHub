@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { AuditAction } from "@prisma/client";
+import type { AppLocale } from "../common/i18n/locale";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import { PrismaService } from "../prisma/prisma.service";
 import { serializeAuditItem } from "./audit.presenter";
@@ -12,7 +13,7 @@ export class AuditService {
     this.prisma = prisma;
   }
 
-  async getLogs(currentUser: AuthenticatedUser) {
+  async getLogs(currentUser: AuthenticatedUser, locale: AppLocale = "en") {
     const branch = await this.resolveBranch(currentUser);
     const logs = await this.prisma.auditLog.findMany({
       where: {
@@ -32,7 +33,7 @@ export class AuditService {
       take: 50,
     });
 
-    const items = logs.map((log) => serializeAuditItem(log));
+    const items = logs.map((log) => serializeAuditItem(log, locale));
 
     return {
       branch: {

@@ -1,4 +1,5 @@
 import { AdjustmentReason, AuditAction, Prisma } from "@prisma/client";
+import type { AppLocale } from "../common/i18n/locale";
 
 type AuditUser = {
   fullName: string;
@@ -27,9 +28,12 @@ export type SerializedAuditItem = {
   createdAt: Date;
 };
 
-export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
+export function serializeAuditItem(
+  activity: AuditRecord,
+  locale: AppLocale = "en"
+): SerializedAuditItem {
   const metadata = asRecord(activity.metadata);
-  const actor = activity.user?.fullName ?? "System";
+  const actor = activity.user?.fullName ?? translateAudit(locale, "system");
 
   switch (activity.action) {
     case AuditAction.STOCK_BATCH_CREATED:
@@ -37,12 +41,14 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
         id: activity.id,
         action: activity.action,
         category: "Inventory",
-        title: "Stock received",
-        description: `${actor} added ${
-          metadata.quantity ?? "new"
-        } units for ${metadata.medicineName ?? "a medicine"} batch ${
-          metadata.batchNumber ?? "N/A"
-        }.`,
+        title: translateAudit(locale, "stockReceived.title"),
+        description: translateAudit(locale, "stockReceived.description", {
+          actor,
+          quantity: metadata.quantity ?? translateAudit(locale, "newQuantity"),
+          medicineName:
+            metadata.medicineName ?? translateAudit(locale, "aMedicine"),
+          batchNumber: metadata.batchNumber ?? translateAudit(locale, "notAvailable"),
+        }),
         tone: "success",
         actor,
         createdAt: activity.createdAt,
@@ -67,8 +73,14 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
           id: activity.id,
           action: activity.action,
           category: "Inventory",
-          title: "Cycle count completed",
-          description: `${actor} counted ${medicineName} batch ${batchNumber}: system ${previousQuantity}, counted ${countedQuantity}.`,
+          title: translateAudit(locale, "cycleCountCompleted.title"),
+          description: translateAudit(locale, "cycleCountCompleted.description", {
+            actor,
+            medicineName,
+            batchNumber,
+            previousQuantity,
+            countedQuantity,
+          }),
           tone:
             quantityDelta === 0
               ? "success"
@@ -84,10 +96,17 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
         id: activity.id,
         action: activity.action,
         category: "Inventory",
-        title: isLoss ? "Stock loss recorded" : "Stock adjusted",
-        description: `${actor} recorded ${
-          quantity || "a"
-        } unit ${reason} adjustment for ${medicineName} batch ${batchNumber}. Remaining stock: ${quantityAfter}.`,
+        title: isLoss
+          ? translateAudit(locale, "stockLossRecorded.title")
+          : translateAudit(locale, "stockAdjusted.title"),
+        description: translateAudit(locale, "stockAdjusted.description", {
+          actor,
+          quantity: quantity || translateAudit(locale, "aUnit"),
+          reason,
+          medicineName,
+          batchNumber,
+          quantityAfter,
+        }),
         tone: isLoss ? "danger" : quantityDelta < 0 ? "warning" : "info",
         actor,
         createdAt: activity.createdAt,
@@ -98,8 +117,11 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
         id: activity.id,
         action: activity.action,
         category: "Catalog",
-        title: "Medicine catalog updated",
-        description: `${actor} added ${metadata.name ?? "a new medicine"} to the catalog.`,
+        title: translateAudit(locale, "medicineCatalogUpdated.title"),
+        description: translateAudit(locale, "medicineCatalogUpdated.description", {
+          actor,
+          name: metadata.name ?? translateAudit(locale, "aNewMedicine"),
+        }),
         tone: "info",
         actor,
         createdAt: activity.createdAt,
@@ -109,8 +131,10 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
         id: activity.id,
         action: activity.action,
         category: "Users",
-        title: "Staff account added",
-        description: `${actor} created a new team account.`,
+        title: translateAudit(locale, "staffAccountAdded.title"),
+        description: translateAudit(locale, "staffAccountAdded.description", {
+          actor,
+        }),
         tone: "info",
         actor,
         createdAt: activity.createdAt,
@@ -120,10 +144,12 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
         id: activity.id,
         action: activity.action,
         category: "Sales",
-        title: "Sale completed",
-        description: `${actor} completed sale ${
-          metadata.saleNumber ?? "N/A"
-        } for ETB ${metadata.totalAmount ?? "0.00"}.`,
+        title: translateAudit(locale, "saleCompleted.title"),
+        description: translateAudit(locale, "saleCompleted.description", {
+          actor,
+          saleNumber: metadata.saleNumber ?? translateAudit(locale, "notAvailable"),
+          totalAmount: metadata.totalAmount ?? "0.00",
+        }),
         tone: "success",
         actor,
         createdAt: activity.createdAt,
@@ -133,10 +159,14 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
         id: activity.id,
         action: activity.action,
         category: "Inventory",
-        title: "Purchase order created",
-        description: `${actor} raised ${metadata.orderNumber ?? "a purchase order"} for ${
-          metadata.supplierName ?? "a supplier"
-        }.`,
+        title: translateAudit(locale, "purchaseOrderCreated.title"),
+        description: translateAudit(locale, "purchaseOrderCreated.description", {
+          actor,
+          orderNumber:
+            metadata.orderNumber ?? translateAudit(locale, "aPurchaseOrder"),
+          supplierName:
+            metadata.supplierName ?? translateAudit(locale, "aSupplier"),
+        }),
         tone: "info",
         actor,
         createdAt: activity.createdAt,
@@ -146,12 +176,16 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
         id: activity.id,
         action: activity.action,
         category: "Inventory",
-        title: "Purchase order received",
-        description: `${actor} received ${
-          metadata.totalReceivedQuantity ?? "new"
-        } units for ${metadata.orderNumber ?? "a purchase order"} from ${
-          metadata.supplierName ?? "a supplier"
-        }.`,
+        title: translateAudit(locale, "purchaseOrderReceived.title"),
+        description: translateAudit(locale, "purchaseOrderReceived.description", {
+          actor,
+          totalReceivedQuantity:
+            metadata.totalReceivedQuantity ?? translateAudit(locale, "newQuantity"),
+          orderNumber:
+            metadata.orderNumber ?? translateAudit(locale, "aPurchaseOrder"),
+          supplierName:
+            metadata.supplierName ?? translateAudit(locale, "aSupplier"),
+        }),
         tone:
           metadata.status === "RECEIVED"
             ? "success"
@@ -164,8 +198,10 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
         id: activity.id,
         action: activity.action,
         category: "Access",
-        title: "Staff login",
-        description: `${actor} signed in successfully.`,
+        title: translateAudit(locale, "staffLogin.title"),
+        description: translateAudit(locale, "staffLogin.description", {
+          actor,
+        }),
         tone: "neutral",
         actor,
         createdAt: activity.createdAt,
@@ -175,8 +211,10 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
         id: activity.id,
         action: activity.action,
         category: "Access",
-        title: "Failed login attempt",
-        description: `A login attempt for ${actor} was rejected.`,
+        title: translateAudit(locale, "failedLoginAttempt.title"),
+        description: translateAudit(locale, "failedLoginAttempt.description", {
+          actor,
+        }),
         tone: "danger",
         actor,
         createdAt: activity.createdAt,
@@ -187,7 +225,10 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
         action: activity.action,
         category: "Inventory",
         title: activity.action.replaceAll("_", " "),
-        description: `${actor} recorded a ${activity.entityType.toLowerCase()} event.`,
+        description: translateAudit(locale, "genericEvent.description", {
+          actor,
+          entityType: activity.entityType.toLowerCase(),
+        }),
         tone: "neutral",
         actor,
         createdAt: activity.createdAt,
@@ -195,7 +236,9 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
   }
 }
 
-function asRecord(value: Prisma.JsonValue | null): Record<string, string | number | boolean> {
+function asRecord(
+  value: Prisma.JsonValue | null
+): Record<string, string | number | boolean> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
   }
@@ -215,4 +258,151 @@ function toNumber(value: unknown) {
 
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
+}
+
+const AUDIT_MESSAGES: Record<AppLocale, Record<string, string>> = {
+  en: {
+    system: "System",
+    notAvailable: "N/A",
+    aMedicine: "a medicine",
+    aNewMedicine: "a new medicine",
+    aPurchaseOrder: "a purchase order",
+    aSupplier: "a supplier",
+    aUnit: "a",
+    newQuantity: "new",
+    "stockReceived.title": "Stock received",
+    "stockReceived.description":
+      "{actor} added {quantity} units for {medicineName} batch {batchNumber}.",
+    "cycleCountCompleted.title": "Cycle count completed",
+    "cycleCountCompleted.description":
+      "{actor} counted {medicineName} batch {batchNumber}: system {previousQuantity}, counted {countedQuantity}.",
+    "stockLossRecorded.title": "Stock loss recorded",
+    "stockAdjusted.title": "Stock adjusted",
+    "stockAdjusted.description":
+      "{actor} recorded {quantity} unit {reason} adjustment for {medicineName} batch {batchNumber}. Remaining stock: {quantityAfter}.",
+    "medicineCatalogUpdated.title": "Medicine catalog updated",
+    "medicineCatalogUpdated.description":
+      "{actor} added {name} to the catalog.",
+    "staffAccountAdded.title": "Staff account added",
+    "staffAccountAdded.description":
+      "{actor} created a new team account.",
+    "saleCompleted.title": "Sale completed",
+    "saleCompleted.description":
+      "{actor} completed sale {saleNumber} for ETB {totalAmount}.",
+    "purchaseOrderCreated.title": "Purchase order created",
+    "purchaseOrderCreated.description":
+      "{actor} raised {orderNumber} for {supplierName}.",
+    "purchaseOrderReceived.title": "Purchase order received",
+    "purchaseOrderReceived.description":
+      "{actor} received {totalReceivedQuantity} units for {orderNumber} from {supplierName}.",
+    "staffLogin.title": "Staff login",
+    "staffLogin.description": "{actor} signed in successfully.",
+    "failedLoginAttempt.title": "Failed login attempt",
+    "failedLoginAttempt.description":
+      "A login attempt for {actor} was rejected.",
+    "genericEvent.description":
+      "{actor} recorded a {entityType} event.",
+  },
+  am: {
+    system: "ሲስተም",
+    notAvailable: "የለም",
+    aMedicine: "አንድ መድሃኒት",
+    aNewMedicine: "አዲስ መድሃኒት",
+    aPurchaseOrder: "የግዥ ትዕዛዝ",
+    aSupplier: "አቅራቢ",
+    aUnit: "አንድ",
+    newQuantity: "አዲስ",
+    "stockReceived.title": "እቃ ተቀብሏል",
+    "stockReceived.description":
+      "{actor} ለ {medicineName} ባች {batchNumber} {quantity} ዩኒቶችን ጨምሯል።",
+    "cycleCountCompleted.title": "የእቃ ቆጠራ ተጠናቋል",
+    "cycleCountCompleted.description":
+      "{actor} {medicineName} ባች {batchNumber} ቆጥሯል፦ ሲስተም {previousQuantity}፣ የተቆጠረ {countedQuantity}።",
+    "stockLossRecorded.title": "የእቃ ጉድለት ተመዝግቧል",
+    "stockAdjusted.title": "እቃ ተስተካክሏል",
+    "stockAdjusted.description":
+      "{actor} ለ {medicineName} ባች {batchNumber} {quantity} ዩኒት {reason} ማስተካከያ መዝግቧል። የቀረው እቃ፦ {quantityAfter}።",
+    "medicineCatalogUpdated.title": "የመድሃኒት ካታሎግ ተዘምኗል",
+    "medicineCatalogUpdated.description":
+      "{actor} {name} ወደ ካታሎጉ ጨምሯል።",
+    "staffAccountAdded.title": "የሰራተኛ መለያ ተጨምሯል",
+    "staffAccountAdded.description":
+      "{actor} አዲስ የቡድን መለያ ፈጥሯል።",
+    "saleCompleted.title": "ሽያጭ ተጠናቋል",
+    "saleCompleted.description":
+      "{actor} ሽያጭ {saleNumber} በ ETB {totalAmount} አጠናቋል።",
+    "purchaseOrderCreated.title": "የግዥ ትዕዛዝ ተፈጥሯል",
+    "purchaseOrderCreated.description":
+      "{actor} {orderNumber} ለ {supplierName} አነሳ።",
+    "purchaseOrderReceived.title": "የግዥ ትዕዛዝ ተቀብሏል",
+    "purchaseOrderReceived.description":
+      "{actor} {totalReceivedQuantity} ዩኒቶችን ለ {orderNumber} ከ {supplierName} ተቀብሏል።",
+    "staffLogin.title": "የሰራተኛ መግቢያ",
+    "staffLogin.description": "{actor} በተሳካ ሁኔታ ገብቷል።",
+    "failedLoginAttempt.title": "ያልተሳካ የመግቢያ ሙከራ",
+    "failedLoginAttempt.description":
+      "ለ {actor} የተደረገ የመግቢያ ሙከራ ተቀባይነት አላገኘም።",
+    "genericEvent.description":
+      "{actor} የ {entityType} ክስተት መዝግቧል።",
+  },
+  om: {
+    system: "Sirna",
+    notAvailable: "Hin jiru",
+    aMedicine: "qoricha tokko",
+    aNewMedicine: "qoricha haaraa",
+    aPurchaseOrder: "ajaja bittaa",
+    aSupplier: "dhiyeessaa",
+    aUnit: "tokko",
+    newQuantity: "haaraa",
+    "stockReceived.title": "Kuusaan fudhatame",
+    "stockReceived.description":
+      "{actor} {medicineName} baachii {batchNumber}f yuunitii {quantity} dabaleera.",
+    "cycleCountCompleted.title": "Lakkoofsi kuusaa xumurame",
+    "cycleCountCompleted.description":
+      "{actor} {medicineName} baachii {batchNumber} lakkaa'eera: sirni {previousQuantity}, lakkaa'ame {countedQuantity}.",
+    "stockLossRecorded.title": "Badiinsi kuusaa galmaa'eera",
+    "stockAdjusted.title": "Kuusaan sirreeffameera",
+    "stockAdjusted.description":
+      "{actor} {medicineName} baachii {batchNumber}f sirreeffama {reason} yuunitii {quantity} galmeesseera. Kuusaan hafe: {quantityAfter}.",
+    "medicineCatalogUpdated.title": "Kaataalogiin qorichaa haaromfameera",
+    "medicineCatalogUpdated.description":
+      "{actor} {name} gara kaataalogii dabalteera.",
+    "staffAccountAdded.title": "Herregni hojjetaa dabalameera",
+    "staffAccountAdded.description":
+      "{actor} herrega garee haaraa uumteera.",
+    "saleCompleted.title": "Gurgurtaan xumurameera",
+    "saleCompleted.description":
+      "{actor} gurgurtaa {saleNumber} ETB {totalAmount}n xumurteera.",
+    "purchaseOrderCreated.title": "Ajajni bittaa uumameera",
+    "purchaseOrderCreated.description":
+      "{actor} {orderNumber} {supplierName}f kaasteera.",
+    "purchaseOrderReceived.title": "Ajajni bittaa fudhatameera",
+    "purchaseOrderReceived.description":
+      "{actor} yuunitii {totalReceivedQuantity} {orderNumber}f {supplierName} irraa fudhateera.",
+    "staffLogin.title": "Seensa hojjetaa",
+    "staffLogin.description": "{actor} milkaa'inaan seeneera.",
+    "failedLoginAttempt.title": "Yaaliin seensaa kufe",
+    "failedLoginAttempt.description":
+      "Yaaliin seensaa {actor}f taasifame ni didame.",
+    "genericEvent.description":
+      "{actor} taatee {entityType} galmeesseera.",
+  },
+};
+
+function translateAudit(
+  locale: AppLocale,
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>
+) {
+  const template = AUDIT_MESSAGES[locale][key] ?? AUDIT_MESSAGES.en[key] ?? key;
+
+  if (!params) {
+    return template;
+  }
+
+  return Object.entries(params).reduce(
+    (result, [param, value]) =>
+      result.replaceAll(`{${param}}`, String(value)),
+    template
+  );
 }

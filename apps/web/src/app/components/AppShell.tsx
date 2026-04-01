@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode } from "react";
+import { LanguageSwitcher } from "./LanguageSwitcher";
+import { useI18n } from "../i18n/I18nProvider";
 import { TOKEN_KEY, type SessionResponse } from "../lib/api";
 
 /* ── Icons ─────────────────────────────────────────────────────────── */
@@ -49,17 +51,17 @@ const ICONS = {
 /* ── Nav config ─────────────────────────────────────────────────────── */
 
 const PRIMARY_NAV = [
-  { href: "/dashboard", label: "Dashboard",      icon: "dashboard" as const },
-  { href: "/medicines", label: "Inventory",       icon: "inventory" as const },
-  { href: "/sales",     label: "Sales / POS",     icon: "sales"     as const },
-  { href: "/alerts",    label: "Alerts",           icon: "alerts"    as const },
+  { href: "/dashboard", labelKey: "shell.nav.dashboard", icon: "dashboard" as const },
+  { href: "/medicines", labelKey: "shell.nav.inventory", icon: "inventory" as const },
+  { href: "/sales", labelKey: "shell.nav.sales", icon: "sales" as const },
+  { href: "/alerts", labelKey: "shell.nav.alerts", icon: "alerts" as const },
 ] as const;
 
 const SECONDARY_NAV = [
-  { href: "/purchase-orders", label: "Restocking",       icon: "purchaseOrders" as const },
-  { href: "/audit",   label: "Audit Log",        icon: "audit"   as const },
-  { href: "/reports", label: "Reports",           icon: "reports" as const },
-  { href: "/users",   label: "User Management",   icon: "users"   as const },
+  { href: "/purchase-orders", labelKey: "shell.nav.restocking", icon: "purchaseOrders" as const },
+  { href: "/audit", labelKey: "shell.nav.audit", icon: "audit" as const },
+  { href: "/reports", labelKey: "shell.nav.reports", icon: "reports" as const },
+  { href: "/users", labelKey: "shell.nav.users", icon: "users" as const },
 ] as const;
 
 /* ── NavItem ────────────────────────────────────────────────────────── */
@@ -126,24 +128,6 @@ function Divider() {
   return <div className="mx-3 my-2" style={{ height: 1, background: "rgba(0,66,83,0.07)" }} />;
 }
 
-/* ── Sync status ────────────────────────────────────────────────────── */
-
-function SyncStatus() {
-  return (
-    <div
-      className="flex items-center gap-2 px-3 py-2 rounded-full text-xs font-semibold"
-      style={{ background: "rgba(0,66,83,0.06)" }}
-    >
-      <Icon d={ICONS.cloud} size={15} />
-      <span className="tracking-wide uppercase text-[0.6rem] text-on-surface-variant">Sync:</span>
-      <span className="flex items-center gap-1.5 text-on-secondary-container font-bold">
-        <span className="w-1.5 h-1.5 rounded-full bg-on-secondary-container" />
-        Live
-      </span>
-    </div>
-  );
-}
-
 /* ── AppShell ───────────────────────────────────────────────────────── */
 
 type AppShellProps = {
@@ -154,6 +138,7 @@ type AppShellProps = {
 export function AppShell({ session, children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useI18n();
   const role = session.user.role;
 
   const primaryNav = PRIMARY_NAV.filter((item) => {
@@ -205,6 +190,13 @@ export function AppShell({ session, children }: AppShellProps) {
     router.replace("/login");
   }
 
+  const roleLabel =
+    role === "OWNER"
+      ? t("shell.role.owner")
+      : role === "PHARMACIST"
+        ? t("shell.role.pharmacist")
+        : t("shell.role.cashier");
+
   return (
     <div className="flex h-screen overflow-hidden bg-surface-low">
 
@@ -226,7 +218,7 @@ export function AppShell({ session, children }: AppShellProps) {
             <div>
               <p className="text-on-surface font-bold text-[0.95rem] leading-tight">PharmaHub</p>
               <p className="text-outline text-[0.58rem] tracking-[0.1em] uppercase mt-0.5">
-                Sovereign Architect
+                {t("shell.tagline")}
               </p>
             </div>
           </div>
@@ -236,13 +228,13 @@ export function AppShell({ session, children }: AppShellProps) {
 
         {/* ── Primary nav ──────────────────────────────────────── */}
         <nav className="px-2.5">
-          <SectionLabel>Workspace</SectionLabel>
+          <SectionLabel>{t("shell.section.workspace")}</SectionLabel>
           <div className="space-y-0.5 mt-0.5">
             {primaryNav.map((item) => (
               <NavItem
                 key={item.href}
                 href={item.href}
-                label={item.label}
+                label={t(item.labelKey)}
                 icon={item.icon}
                 active={isActive(item.href)}
                 badge={item.icon === "alerts" ? undefined : undefined}
@@ -255,13 +247,13 @@ export function AppShell({ session, children }: AppShellProps) {
 
         {/* ── Secondary nav ────────────────────────────────────── */}
         <nav className="px-2.5">
-          <SectionLabel>Management</SectionLabel>
+          <SectionLabel>{t("shell.section.management")}</SectionLabel>
           <div className="space-y-0.5 mt-0.5">
             {secondaryNav.map((item) => (
               <NavItem
                 key={item.href}
                 href={item.href}
-                label={item.label}
+                label={t(item.labelKey)}
                 icon={item.icon}
                 active={isActive(item.href)}
               />
@@ -280,7 +272,7 @@ export function AppShell({ session, children }: AppShellProps) {
             style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
           >
             <Icon d={ICONS.plus} size={16} />
-            New Transaction
+            {t("shell.action.newTransaction")}
           </Link>
         </div>
 
@@ -288,6 +280,9 @@ export function AppShell({ session, children }: AppShellProps) {
 
         {/* ── Utility links ────────────────────────────────────── */}
         <nav className="px-2.5">
+          <div className="mb-3 px-1">
+            <LanguageSwitcher compact />
+          </div>
           <div className="space-y-0.5">
             <button
               className="flex items-center gap-3.5 w-full px-3 py-3 rounded-lg text-[0.875rem] font-medium text-on-surface-variant hover:bg-primary/[0.04] hover:text-on-surface transition-colors cursor-pointer"
@@ -296,7 +291,7 @@ export function AppShell({ session, children }: AppShellProps) {
               <span className="text-outline">
                 <Icon d={ICONS.settings} size={20} />
               </span>
-              Settings
+              {t("shell.action.settings")}
             </button>
             <button
               className="flex items-center gap-3.5 w-full px-3 py-3 rounded-lg text-[0.875rem] font-medium text-on-surface-variant hover:bg-primary/[0.04] hover:text-on-surface transition-colors cursor-pointer"
@@ -305,7 +300,7 @@ export function AppShell({ session, children }: AppShellProps) {
               <span className="text-outline">
                 <Icon d={ICONS.support} size={20} />
               </span>
-              Support
+              {t("shell.action.support")}
             </button>
           </div>
         </nav>
@@ -317,7 +312,7 @@ export function AppShell({ session, children }: AppShellProps) {
           <div
             className="flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:bg-surface-low transition-colors group"
             onClick={signOut}
-            title="Sign out"
+            title={t("shell.action.signOut")}
           >
             <div
               className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0"
@@ -330,7 +325,7 @@ export function AppShell({ session, children }: AppShellProps) {
                 {session.user.fullName}
               </p>
               <p className="text-outline text-[0.65rem] tracking-wide uppercase mt-0.5 truncate">
-                {session.user.role}
+                {roleLabel}
               </p>
             </div>
             <span className="text-outline/40 group-hover:text-outline transition-colors shrink-0">
@@ -386,7 +381,7 @@ export function AppShell({ session, children }: AppShellProps) {
             </svg>
             <input
               type="search"
-              placeholder="Search inventory, sales, or records…"
+              placeholder={t("shell.searchPlaceholder")}
               className="w-full h-9 pl-9 pr-4 rounded-full bg-surface-low text-on-surface text-sm
                 placeholder:text-outline/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow"
               style={{ boxShadow: "0 1px 3px rgba(0,66,83,0.04)" }}
@@ -403,7 +398,7 @@ export function AppShell({ session, children }: AppShellProps) {
             {/* Notification bell */}
             <button
               className="relative w-8 h-8 rounded-lg flex items-center justify-center text-outline hover:bg-surface-low hover:text-on-surface transition-colors cursor-pointer"
-              title="Notifications"
+              title={t("shell.action.notifications")}
             >
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
                 <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -419,7 +414,7 @@ export function AppShell({ session, children }: AppShellProps) {
             {/* User identity card */}
             <button
               onClick={signOut}
-              title="Sign out"
+              title={t("shell.action.signOut")}
               className="flex items-center gap-2.5 px-2 py-1 rounded-lg hover:bg-surface-low transition-colors cursor-pointer group"
             >
               <div className="text-right">
@@ -427,7 +422,7 @@ export function AppShell({ session, children }: AppShellProps) {
                   {session.user.fullName}
                 </p>
                 <p className="text-outline text-[0.6rem] tracking-widest uppercase mt-0.5">
-                  {session.user.role}
+                  {roleLabel}
                 </p>
               </div>
               <div
@@ -445,6 +440,26 @@ export function AppShell({ session, children }: AppShellProps) {
           {children}
         </main>
       </div>
+    </div>
+  );
+}
+
+function SyncStatus() {
+  const { t } = useI18n();
+
+  return (
+    <div
+      className="flex items-center gap-2 px-3 py-2 rounded-full text-xs font-semibold"
+      style={{ background: "rgba(0,66,83,0.06)" }}
+    >
+      <Icon d={ICONS.cloud} size={15} />
+      <span className="tracking-wide uppercase text-[0.6rem] text-on-surface-variant">
+        {t("shell.sync")}:
+      </span>
+      <span className="flex items-center gap-1.5 text-on-secondary-container font-bold">
+        <span className="w-1.5 h-1.5 rounded-full bg-on-secondary-container" />
+        {t("shell.live")}
+      </span>
     </div>
   );
 }

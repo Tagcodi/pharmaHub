@@ -8,6 +8,7 @@ import { EmptyStateCard } from "../components/ui/EmptyStateCard";
 import { KpiCard } from "../components/ui/KpiCard";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { SurfaceCard } from "../components/ui/SurfaceCard";
+import { useI18n } from "../i18n/I18nProvider";
 import {
   TOKEN_KEY,
   fetchJson,
@@ -38,6 +39,7 @@ type ReceiptLineState = {
 
 export default function PurchaseOrdersPage() {
   const router = useRouter();
+  const { t, locale } = useI18n();
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [catalog, setCatalog] = useState<PurchaseOrderCatalogResponse | null>(null);
   const [orders, setOrders] = useState<PurchaseOrdersResponse | null>(null);
@@ -235,22 +237,22 @@ export default function PurchaseOrdersPage() {
     const unitCost = Number(draftUnitCost);
 
     if (!selectedMedicine) {
-      setError("Choose a medicine before adding a purchase order line.");
+      setError(t("purchaseOrders.error.chooseMedicine"));
       return;
     }
 
     if (!Number.isInteger(quantity) || quantity < 1) {
-      setError("Requested quantity must be a whole number greater than zero.");
+      setError(t("purchaseOrders.error.invalidQuantity"));
       return;
     }
 
     if (!Number.isFinite(unitCost) || unitCost <= 0) {
-      setError("Unit cost must be a valid amount greater than zero.");
+      setError(t("purchaseOrders.error.invalidUnitCost"));
       return;
     }
 
     if (draftLines.some((line) => line.medicineId === selectedMedicine.id)) {
-      setError("That medicine is already in the purchase order draft.");
+      setError(t("purchaseOrders.error.duplicateDraft"));
       return;
     }
 
@@ -262,7 +264,7 @@ export default function PurchaseOrdersPage() {
         details:
           [selectedMedicine.genericName, selectedMedicine.form, selectedMedicine.strength]
             .filter(Boolean)
-            .join(" • ") || "Catalog medicine",
+            .join(" • ") || t("common.catalogMedicine"),
         quantity,
         unitCost,
       },
@@ -283,7 +285,11 @@ export default function PurchaseOrdersPage() {
     }
 
     if (draftLines.some((line) => line.medicineId === medicine.id)) {
-      setError(`${medicine.name} is already added to the draft order.`);
+      setError(
+        t("purchaseOrders.error.duplicateSuggested", {
+          medicineName: medicine.name,
+        })
+      );
       return;
     }
 
@@ -295,7 +301,7 @@ export default function PurchaseOrdersPage() {
         details:
           [medicine.genericName, medicine.form, medicine.strength]
             .filter(Boolean)
-            .join(" • ") || "Catalog medicine",
+            .join(" • ") || t("common.catalogMedicine"),
         quantity: medicine.recommendedOrderQuantity,
         unitCost: medicine.lastCostPrice ?? 0,
       },
@@ -325,12 +331,12 @@ export default function PurchaseOrdersPage() {
     }
 
     if (!supplierName.trim()) {
-      setError("Supplier name is required before creating a purchase order.");
+      setError(t("purchaseOrders.error.supplierRequired"));
       return;
     }
 
     if (!draftLines.length) {
-      setError("Add at least one medicine to the purchase order draft.");
+      setError(t("purchaseOrders.error.draftRequired"));
       return;
     }
 
@@ -354,7 +360,10 @@ export default function PurchaseOrdersPage() {
       });
 
       setSuccessMessage(
-        `Purchase order ${createdOrder.orderNumber} created for ${createdOrder.supplierName}.`
+        t("purchaseOrders.success.created", {
+          orderNumber: createdOrder.orderNumber,
+          supplierName: createdOrder.supplierName,
+        })
       );
       setSupplierName("");
       setNotes("");
@@ -399,7 +408,7 @@ export default function PurchaseOrdersPage() {
     }
 
     if (!selectedOrder) {
-      setError("Select an order before receiving stock.");
+      setError(t("purchaseOrders.error.selectOrder"));
       return;
     }
 
@@ -424,18 +433,26 @@ export default function PurchaseOrdersPage() {
     }, []);
 
     if (!itemsToReceive.length) {
-      setError("Enter at least one received line before submitting the delivery.");
+      setError(t("purchaseOrders.error.receivedLineRequired"));
       return;
     }
 
     for (const { item, form } of itemsToReceive) {
       if (!form.batchNumber.trim()) {
-        setError(`Batch number is required for ${item.medicine.name}.`);
+        setError(
+          t("purchaseOrders.error.batchRequired", {
+            medicineName: item.medicine.name,
+          })
+        );
         return;
       }
 
       if (!form.expiryDate) {
-        setError(`Expiry date is required for ${item.medicine.name}.`);
+        setError(
+          t("purchaseOrders.error.expiryRequired", {
+            medicineName: item.medicine.name,
+          })
+        );
         return;
       }
 
@@ -444,25 +461,38 @@ export default function PurchaseOrdersPage() {
       const sellingPrice = Number(form.sellingPrice);
 
       if (!Number.isInteger(receivedQuantity) || receivedQuantity < 1) {
-        setError(`Received quantity for ${item.medicine.name} must be a whole number.`);
+        setError(
+          t("purchaseOrders.error.receivedQuantityInvalid", {
+            medicineName: item.medicine.name,
+          })
+        );
         return;
       }
 
       if (receivedQuantity > item.outstandingQuantity) {
         setError(
-          `${item.medicine.name} only has ${item.outstandingQuantity} units outstanding on this order.`
+          t("purchaseOrders.error.outstandingExceeded", {
+            medicineName: item.medicine.name,
+            count: item.outstandingQuantity,
+          })
         );
         return;
       }
 
       if (!Number.isFinite(costPrice) || costPrice <= 0) {
-        setError(`Cost price for ${item.medicine.name} must be greater than zero.`);
+        setError(
+          t("purchaseOrders.error.costPriceInvalid", {
+            medicineName: item.medicine.name,
+          })
+        );
         return;
       }
 
       if (!Number.isFinite(sellingPrice) || sellingPrice <= 0) {
         setError(
-          `Selling price for ${item.medicine.name} must be greater than zero.`
+          t("purchaseOrders.error.sellingPriceInvalid", {
+            medicineName: item.medicine.name,
+          })
         );
         return;
       }
@@ -492,9 +522,10 @@ export default function PurchaseOrdersPage() {
       );
 
       setSuccessMessage(
-        `Delivery posted for ${updatedOrder.orderNumber}. Status is now ${formatStatusLabel(
-          updatedOrder.status
-        ).toLowerCase()}.`
+        t("purchaseOrders.success.received", {
+          orderNumber: updatedOrder.orderNumber,
+          status: formatStatusLabel(updatedOrder.status, t).toLowerCase(),
+        })
       );
       setSelectedOrderId(updatedOrder.id);
       await refreshWorkspace();
@@ -525,7 +556,7 @@ export default function PurchaseOrdersPage() {
   }, [orders?.orders, orderSearch]);
 
   if (isLoading) {
-    return <AppLoading message="Loading restocking workspace…" />;
+    return <AppLoading message={t("common.loading.restockingWorkspace")} />;
   }
 
   if (!session) {
@@ -560,46 +591,58 @@ export default function PurchaseOrdersPage() {
         <div className="mb-8 flex flex-wrap items-start gap-5">
           <div>
             <h1 className="text-[2.2rem] font-bold leading-none tracking-[-0.04em] text-on-surface">
-              Restocking Workspace
+              {t("purchaseOrders.title")}
             </h1>
             <p className="mt-2 max-w-[760px] text-sm text-on-surface-variant">
-              Raise supplier orders from live low-stock signals, then receive delivered
-              stock directly into inventory batches for {orders?.branch.name ?? session.branch?.name ?? "this branch"}.
+              {t("purchaseOrders.subtitle", {
+                branch:
+                  orders?.branch.name ?? session.branch?.name ?? t("common.currentBranch"),
+              })}
             </p>
           </div>
 
           <div className="ml-auto rounded-full bg-surface-low px-4 py-2 text-xs font-semibold text-on-surface-variant">
-            {catalogMetrics.lowStockCount} low-stock medicines waiting on replenishment
+            {t("purchaseOrders.notice.lowStock", {
+              count: formatNumber(catalogMetrics.lowStockCount, locale),
+            })}
           </div>
         </div>
 
         <div className="mb-7 grid gap-5 xl:grid-cols-5">
           <KpiCard
-            label="Open Orders"
+            label={t("purchaseOrders.kpi.openOrders")}
             value={String(orderMetrics.openOrders)}
-            note={`${orderMetrics.outstandingUnits.toLocaleString("en-US")} units still outstanding`}
+            note={t("purchaseOrders.note.outstandingUnits", {
+              count: formatNumber(orderMetrics.outstandingUnits, locale),
+            })}
           />
           <KpiCard
-            label="Low Stock"
+            label={t("purchaseOrders.kpi.lowStock")}
             value={String(catalogMetrics.lowStockCount)}
             valueColor="#93000a"
-            note={`${catalogMetrics.recommendedOrderUnits.toLocaleString("en-US")} units recommended`}
+            note={t("purchaseOrders.note.recommendedUnits", {
+              count: formatNumber(catalogMetrics.recommendedOrderUnits, locale),
+            })}
           />
           <KpiCard
-            label="Total Ordered Value"
-            value={`ETB ${formatCurrency(orderMetrics.totalOrderedValue)}`}
-            note={`${orderMetrics.totalOrders} purchase orders tracked`}
+            label={t("purchaseOrders.kpi.totalOrderedValue")}
+            value={`ETB ${formatCurrency(orderMetrics.totalOrderedValue, locale)}`}
+            note={t("purchaseOrders.note.totalOrders", {
+              count: formatNumber(orderMetrics.totalOrders, locale),
+            })}
           />
           <KpiCard
-            label="Received Orders"
+            label={t("purchaseOrders.kpi.receivedOrders")}
             value={String(orderMetrics.receivedOrders)}
             valueColor="#1f5f26"
-            note="Completed supplier deliveries"
+            note={t("purchaseOrders.note.completedDeliveries")}
           />
           <KpiCard
-            label="Draft Total"
-            value={`ETB ${formatCurrency(draftTotalValue)}`}
-            note={`${draftLines.length} lines currently staged`}
+            label={t("purchaseOrders.kpi.draftTotal")}
+            value={`ETB ${formatCurrency(draftTotalValue, locale)}`}
+            note={t("purchaseOrders.note.draftLines", {
+              count: formatNumber(draftLines.length, locale),
+            })}
           />
         </div>
 
@@ -619,8 +662,8 @@ export default function PurchaseOrdersPage() {
           <div className="space-y-6">
             <SurfaceCard className="overflow-hidden">
               <SectionHeader
-                title="Purchase Orders"
-                description="Track open and received supplier orders for the branch."
+                title={t("purchaseOrders.section.orders")}
+                description={t("purchaseOrders.section.ordersDescription")}
               >
                 <div className="relative min-w-[250px] flex-1 max-w-[320px]">
                   <svg
@@ -640,7 +683,7 @@ export default function PurchaseOrdersPage() {
                   </svg>
                   <input
                     type="search"
-                    placeholder="Search order or supplier…"
+                    placeholder={t("purchaseOrders.searchOrders")}
                     value={orderSearch}
                     onChange={(event) => setOrderSearch(event.target.value)}
                     className="h-10 w-full rounded-lg bg-surface-low pl-9 pr-4 text-sm text-on-surface placeholder:text-outline/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -675,27 +718,27 @@ export default function PurchaseOrdersPage() {
                             </p>
                           </div>
                           <StatusBadge
-                            label={formatStatusLabel(order.status)}
+                            label={formatStatusLabel(order.status, t)}
                             tone={statusTone(order.status)}
                           />
                         </div>
 
                         <div className="mt-4 grid gap-3 text-xs md:grid-cols-4">
                           <Metric
-                            label="Ordered"
-                            value={order.totalRequestedQuantity.toLocaleString("en-US")}
+                            label={t("purchaseOrders.metric.ordered")}
+                            value={formatNumber(order.totalRequestedQuantity, locale)}
                           />
                           <Metric
-                            label="Received"
-                            value={order.totalReceivedQuantity.toLocaleString("en-US")}
+                            label={t("purchaseOrders.metric.received")}
+                            value={formatNumber(order.totalReceivedQuantity, locale)}
                           />
                           <Metric
-                            label="Outstanding"
-                            value={order.outstandingQuantity.toLocaleString("en-US")}
+                            label={t("purchaseOrders.metric.outstanding")}
+                            value={formatNumber(order.outstandingQuantity, locale)}
                           />
                           <Metric
-                            label="Value"
-                            value={`ETB ${formatCurrency(order.totalOrderedValue)}`}
+                            label={t("purchaseOrders.metric.value")}
+                            value={`ETB ${formatCurrency(order.totalOrderedValue, locale)}`}
                           />
                         </div>
                       </button>
@@ -706,8 +749,8 @@ export default function PurchaseOrdersPage() {
                 <div className="p-6">
                   <EmptyStateCard
                     compact
-                    title="No purchase orders yet"
-                    description="Create the first restocking order from the draft panel to start supplier tracking."
+                    title={t("purchaseOrders.empty.orders")}
+                    description={t("purchaseOrders.empty.ordersDescription")}
                   />
                 </div>
               )}
@@ -715,8 +758,8 @@ export default function PurchaseOrdersPage() {
 
             <SurfaceCard className="overflow-hidden">
               <SectionHeader
-                title="Low-Stock Suggestions"
-                description="Quick-start reorder lines from medicines already under the branch threshold."
+                title={t("purchaseOrders.section.lowStock")}
+                description={t("purchaseOrders.section.lowStockDescription")}
               />
 
               {catalog?.lowStockMedicines.length ? (
@@ -734,20 +777,20 @@ export default function PurchaseOrdersPage() {
                           <p className="mt-1 text-xs text-on-surface-variant">
                             {[medicine.genericName, medicine.form, medicine.strength]
                               .filter(Boolean)
-                              .join(" • ") || "Catalog medicine"}
+                              .join(" • ") || t("common.catalogMedicine")}
                           </p>
                         </div>
-                        <StatusBadge label="Low stock" tone="danger" />
+                        <StatusBadge label={t("purchaseOrders.badge.lowStock")} tone="danger" />
                       </div>
 
                       <div className="mt-4 grid gap-3 text-xs md:grid-cols-2">
                         <Metric
-                          label="Units On Hand"
-                          value={medicine.totalQuantityOnHand.toLocaleString("en-US")}
+                          label={t("purchaseOrders.metric.unitsOnHand")}
+                          value={formatNumber(medicine.totalQuantityOnHand, locale)}
                         />
                         <Metric
-                          label="Suggested Order"
-                          value={medicine.recommendedOrderQuantity.toLocaleString("en-US")}
+                          label={t("purchaseOrders.metric.suggestedOrder")}
+                          value={formatNumber(medicine.recommendedOrderQuantity, locale)}
                         />
                       </div>
 
@@ -756,7 +799,7 @@ export default function PurchaseOrdersPage() {
                         onClick={() => handleAddRecommendedMedicine(medicine.id)}
                         className="mt-4 flex h-10 items-center justify-center rounded-lg bg-primary px-4 text-sm font-bold text-white transition-opacity hover:opacity-90"
                       >
-                        Add Suggested Line
+                        {t("purchaseOrders.button.addSuggestedLine")}
                       </button>
                     </div>
                   ))}
@@ -765,8 +808,8 @@ export default function PurchaseOrdersPage() {
                 <div className="p-6">
                   <EmptyStateCard
                     compact
-                    title="No low-stock recommendations"
-                    description="Once branch stock falls under the threshold, suggested reorder lines will appear here."
+                    title={t("purchaseOrders.empty.lowStock")}
+                    description={t("purchaseOrders.empty.lowStockDescription")}
                   />
                 </div>
               )}
@@ -776,30 +819,32 @@ export default function PurchaseOrdersPage() {
           <div className="space-y-6">
             <SurfaceCard className="p-6">
               <div className="mb-5">
-                <h2 className="text-[1rem] font-bold text-on-surface">Create Purchase Order</h2>
+                <h2 className="text-[1rem] font-bold text-on-surface">
+                  {t("purchaseOrders.section.create")}
+                </h2>
                 <p className="mt-1 text-sm text-on-surface-variant">
-                  Stage medicines, supplier, and cost assumptions before ordering.
+                  {t("purchaseOrders.section.createDescription")}
                 </p>
               </div>
 
               <form className="space-y-5" onSubmit={handleCreateOrder}>
                 <label className="block">
                   <span className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-outline">
-                    Supplier Name
+                    {t("purchaseOrders.field.supplierName")}
                   </span>
                   <input
                     type="text"
                     value={supplierName}
                     onChange={(event) => setSupplierName(event.target.value)}
                     className="h-11 w-full rounded-lg border border-outline/10 bg-surface-low px-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    placeholder="EPSS, local wholesaler, or distributor"
+                    placeholder={t("purchaseOrders.placeholder.supplier")}
                   />
                 </label>
 
                 <div className="grid gap-3 md:grid-cols-[1fr_110px_110px]">
                   <label className="block">
                     <span className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-outline">
-                      Medicine
+                      {t("purchaseOrders.field.medicine")}
                     </span>
                     <select
                       value={selectedMedicineId}
@@ -822,7 +867,11 @@ export default function PurchaseOrdersPage() {
                     >
                       {(catalog?.medicines ?? []).map((medicine) => (
                         <option key={medicine.id} value={medicine.id}>
-                          {medicine.name} ({medicine.totalQuantityOnHand} on hand)
+                          {medicine.name} (
+                          {t("purchaseOrders.option.onHand", {
+                            count: formatNumber(medicine.totalQuantityOnHand, locale),
+                          })}
+                          )
                         </option>
                       ))}
                     </select>
@@ -830,7 +879,7 @@ export default function PurchaseOrdersPage() {
 
                   <label className="block">
                     <span className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-outline">
-                      Quantity
+                      {t("purchaseOrders.field.quantity")}
                     </span>
                     <input
                       type="number"
@@ -844,7 +893,7 @@ export default function PurchaseOrdersPage() {
 
                   <label className="block">
                     <span className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-outline">
-                      Unit Cost
+                      {t("purchaseOrders.field.unitCost")}
                     </span>
                     <input
                       type="number"
@@ -862,7 +911,7 @@ export default function PurchaseOrdersPage() {
                   onClick={handleAddDraftLine}
                   className="flex h-11 w-full items-center justify-center rounded-lg border border-outline/10 bg-surface-low text-sm font-bold text-on-surface transition-colors hover:bg-surface"
                 >
-                  Add Draft Line
+                  {t("purchaseOrders.button.addDraftLine")}
                 </button>
 
                 {draftLines.length ? (
@@ -878,7 +927,10 @@ export default function PurchaseOrdersPage() {
                             {line.details}
                           </p>
                           <p className="mt-2 text-xs text-on-surface-variant">
-                            {line.quantity} units • ETB {formatCurrency(line.unitCost)} each
+                            {t("purchaseOrders.note.lineUnitCost", {
+                              count: formatNumber(line.quantity, locale),
+                              amount: formatCurrency(line.unitCost, locale),
+                            })}
                           </p>
                         </div>
                         <button
@@ -886,7 +938,7 @@ export default function PurchaseOrdersPage() {
                           onClick={() => removeDraftLine(line.medicineId)}
                           className="rounded-lg px-2 py-1 text-xs font-bold text-error hover:bg-error-container hover:text-on-error-container"
                         >
-                          Remove
+                          {t("purchaseOrders.button.remove")}
                         </button>
                       </div>
                     ))}
@@ -894,21 +946,21 @@ export default function PurchaseOrdersPage() {
                 ) : (
                   <EmptyStateCard
                     compact
-                    title="Draft is empty"
-                    description="Add one or more medicines to build the purchase order."
+                    title={t("purchaseOrders.empty.draft")}
+                    description={t("purchaseOrders.empty.draftDescription")}
                   />
                 )}
 
                 <label className="block">
                   <span className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-outline">
-                    Notes
+                    {t("purchaseOrders.field.notes")}
                   </span>
                   <textarea
                     rows={3}
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
                     className="w-full rounded-lg border border-outline/10 bg-surface-low px-3 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    placeholder="Optional supplier or order notes."
+                    placeholder={t("purchaseOrders.placeholder.notes")}
                   />
                 </label>
 
@@ -918,16 +970,20 @@ export default function PurchaseOrdersPage() {
                   className="flex h-11 w-full items-center justify-center rounded-lg text-sm font-bold text-white disabled:opacity-60"
                   style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
                 >
-                  {isCreating ? "Creating order…" : "Create Purchase Order"}
+                  {isCreating
+                    ? t("purchaseOrders.button.creatingOrder")
+                    : t("purchaseOrders.button.createOrder")}
                 </button>
               </form>
             </SurfaceCard>
 
             <SurfaceCard className="p-6">
               <div className="mb-5">
-                <h2 className="text-[1rem] font-bold text-on-surface">Receive Delivery</h2>
+                <h2 className="text-[1rem] font-bold text-on-surface">
+                  {t("purchaseOrders.section.receive")}
+                </h2>
                 <p className="mt-1 text-sm text-on-surface-variant">
-                  Convert an open supplier order into real stock batches.
+                  {t("purchaseOrders.section.receiveDescription")}
                 </p>
               </div>
 
@@ -940,11 +996,14 @@ export default function PurchaseOrdersPage() {
                           {selectedOrder.orderNumber}
                         </p>
                         <p className="mt-1 text-xs text-on-surface-variant">
-                          {selectedOrder.supplierName} • {selectedOrder.totalRequestedQuantity} requested
+                          {selectedOrder.supplierName} •{" "}
+                          {t("purchaseOrders.note.requested", {
+                            count: formatNumber(selectedOrder.totalRequestedQuantity, locale),
+                          })}
                         </p>
                       </div>
                       <StatusBadge
-                        label={formatStatusLabel(selectedOrder.status)}
+                        label={formatStatusLabel(selectedOrder.status, t)}
                         tone={statusTone(selectedOrder.status)}
                       />
                     </div>
@@ -968,8 +1027,13 @@ export default function PurchaseOrdersPage() {
                                     {item.medicine.name}
                                   </p>
                                   <p className="mt-1 text-xs text-on-surface-variant">
-                                    {item.outstandingQuantity} units outstanding • ETB{" "}
-                                    {formatCurrency(item.unitCost)} expected cost
+                                    {t("purchaseOrders.note.outstandingUnits", {
+                                      count: formatNumber(item.outstandingQuantity, locale),
+                                    })}{" "}
+                                    •{" "}
+                                    {t("purchaseOrders.note.expectedCost", {
+                                      amount: formatCurrency(item.unitCost, locale),
+                                    })}
                                   </p>
                                 </div>
                               </div>
@@ -977,7 +1041,7 @@ export default function PurchaseOrdersPage() {
                               <div className="grid gap-3">
                                 <label className="block">
                                   <span className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-outline">
-                                    Batch Number
+                                    {t("purchaseOrders.field.batchNumber")}
                                   </span>
                                   <input
                                     type="text"
@@ -990,14 +1054,14 @@ export default function PurchaseOrdersPage() {
                                       )
                                     }
                                     className="h-11 w-full rounded-lg border border-outline/10 bg-surface-lowest px-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                    placeholder="Supplier batch code"
+                                    placeholder={t("purchaseOrders.placeholder.batch")}
                                   />
                                 </label>
 
                                 <div className="grid gap-3 md:grid-cols-2">
                                   <label className="block">
                                     <span className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-outline">
-                                      Expiry Date
+                                      {t("purchaseOrders.field.expiryDate")}
                                     </span>
                                     <input
                                       type="date"
@@ -1015,7 +1079,7 @@ export default function PurchaseOrdersPage() {
 
                                   <label className="block">
                                     <span className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-outline">
-                                      Received Quantity
+                                      {t("purchaseOrders.field.receivedQuantity")}
                                     </span>
                                     <input
                                       type="number"
@@ -1037,7 +1101,7 @@ export default function PurchaseOrdersPage() {
                                 <div className="grid gap-3 md:grid-cols-2">
                                   <label className="block">
                                     <span className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-outline">
-                                      Cost Price
+                                      {t("purchaseOrders.field.costPrice")}
                                     </span>
                                     <input
                                       type="number"
@@ -1057,7 +1121,7 @@ export default function PurchaseOrdersPage() {
 
                                   <label className="block">
                                     <span className="mb-2 block text-xs font-bold uppercase tracking-[0.08em] text-outline">
-                                      Selling Price
+                                      {t("purchaseOrders.field.sellingPrice")}
                                     </span>
                                     <input
                                       type="number"
@@ -1086,15 +1150,17 @@ export default function PurchaseOrdersPage() {
                         className="flex h-11 w-full items-center justify-center rounded-lg text-sm font-bold text-white disabled:opacity-60"
                         style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
                       >
-                        {isReceiving ? "Posting delivery…" : "Receive Delivery"}
+                        {isReceiving
+                          ? t("purchaseOrders.button.postingDelivery")
+                          : t("purchaseOrders.button.receiveDelivery")}
                       </button>
                     </form>
                   ) : (
                     <div className="mt-5">
                       <EmptyStateCard
                         compact
-                        title="No outstanding lines"
-                        description="This order has already been fully received into stock."
+                        title={t("purchaseOrders.empty.outstanding")}
+                        description={t("purchaseOrders.empty.outstandingDescription")}
                       />
                     </div>
                   )}
@@ -1102,8 +1168,8 @@ export default function PurchaseOrdersPage() {
               ) : (
                 <EmptyStateCard
                   compact
-                  title="No order selected"
-                  description="Choose an order from the list to receive supplier stock."
+                  title={t("purchaseOrders.empty.selectedOrder")}
+                  description={t("purchaseOrders.empty.selectedOrderDescription")}
                 />
               )}
             </SurfaceCard>
@@ -1166,23 +1232,56 @@ function statusTone(
   return "warning";
 }
 
-function formatStatusLabel(status: PurchaseOrderRecord["status"]) {
-  return status
-    .toLowerCase()
-    .split("_")
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
+function formatStatusLabel(
+  status: PurchaseOrderRecord["status"],
+  t: ReturnType<typeof useI18n>["t"]
+) {
+  if (status === "RECEIVED") {
+    return t("purchaseOrders.status.received");
+  }
+
+  if (status === "PARTIALLY_RECEIVED") {
+    return t("purchaseOrders.status.partiallyReceived");
+  }
+
+  if (status === "CANCELLED") {
+    return t("purchaseOrders.status.cancelled");
+  }
+
+  return t("purchaseOrders.status.open");
 }
 
-function formatCurrency(value: number) {
-  return value.toLocaleString("en-US", {
+function formatCurrency(
+  value: number,
+  locale: ReturnType<typeof useI18n>["locale"]
+) {
+  return value.toLocaleString(getIntlLocale(locale), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function formatNumber(
+  value: number,
+  locale: ReturnType<typeof useI18n>["locale"]
+) {
+  return value.toLocaleString(getIntlLocale(locale));
 }
 
 function getFutureDateInputValue(days: number) {
   const value = new Date();
   value.setDate(value.getDate() + days);
   return value.toISOString().slice(0, 10);
+}
+
+function getIntlLocale(locale: ReturnType<typeof useI18n>["locale"]) {
+  if (locale === "am") {
+    return "am-ET";
+  }
+
+  if (locale === "om") {
+    return "om-ET";
+  }
+
+  return "en-US";
 }

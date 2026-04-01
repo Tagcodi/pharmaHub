@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useI18n } from "./i18n/I18nProvider";
 import {
   fetchJson,
   TOKEN_KEY,
@@ -11,6 +12,7 @@ import {
 
 export default function HomePage() {
   const router = useRouter();
+  const { t } = useI18n();
 
   useEffect(() => {
     void checkAndRedirect();
@@ -56,7 +58,7 @@ export default function HomePage() {
           aria-label="Loading"
         />
         <p className="text-on-surface-variant text-sm font-medium tracking-wide">
-          Loading PharmaHub…
+          {t("common.loading.pharmahub")}
         </p>
       </div>
     </div>

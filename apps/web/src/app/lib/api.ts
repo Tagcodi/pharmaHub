@@ -729,6 +729,14 @@ export function getApiBase(): string {
   return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 }
 
+function getStoredLocale() {
+  if (typeof window === "undefined") {
+    return "en";
+  }
+
+  return window.localStorage.getItem("pharmahub.locale") ?? "en";
+}
+
 export function getStoredToken() {
   if (typeof window === "undefined") {
     return null;
@@ -740,6 +748,7 @@ export function getStoredToken() {
 export function getAuthHeaders(token: string) {
   return {
     Authorization: `Bearer ${token}`,
+    "x-pharmahub-locale": getStoredLocale(),
   };
 }
 
@@ -751,6 +760,7 @@ export async function fetchJson<T>(
     ...init,
     headers: {
       "Content-Type": "application/json",
+      "x-pharmahub-locale": getStoredLocale(),
       ...(init?.headers ?? {}),
     },
   });

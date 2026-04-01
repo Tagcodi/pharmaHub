@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { useI18n } from "../i18n/I18nProvider";
 import {
   fetchJson,
   formatError,
@@ -17,6 +19,7 @@ const initialForm = {
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [form, setForm] = useState(initialForm);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,7 +79,7 @@ export default function LoginPage() {
             aria-label="Checking setup status"
           />
           <p className="text-on-surface-variant text-sm font-medium tracking-wide">
-            Loading sign-in…
+            {t("common.loading.signIn")}
           </p>
         </div>
       </div>
@@ -85,6 +88,10 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-6">
+      <div className="mb-5 w-full max-w-[420px] flex justify-end">
+        <LanguageSwitcher />
+      </div>
+
       {/* Glassmorphism card */}
       <div
         className="w-full max-w-[420px] rounded-[8px] p-10"
@@ -109,10 +116,10 @@ export default function LoginPage() {
         </div>
 
         <h1 className="text-[1.5rem] font-bold text-on-surface tracking-[-0.025em]">
-          Welcome back
+          {t("login.title")}
         </h1>
         <p className="mt-1 text-on-surface-variant text-sm leading-relaxed">
-          Sign in with your email and password.
+          {t("login.subtitle")}
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
@@ -122,12 +129,12 @@ export default function LoginPage() {
               htmlFor="email"
               className="text-[0.75rem] font-bold text-on-surface tracking-[0.01em]"
             >
-              Email <span className="text-on-error-container">*</span>
+              {t("login.email")} <span className="text-on-error-container">*</span>
             </label>
             <input
               id="email"
               type="email"
-              placeholder="owner@pharmahub.et"
+              placeholder={t("login.emailPlaceholder")}
               required
               value={form.email}
               onChange={field("email")}
@@ -142,12 +149,12 @@ export default function LoginPage() {
               htmlFor="password"
               className="text-[0.75rem] font-bold text-on-surface tracking-[0.01em]"
             >
-              Password <span className="text-on-error-container">*</span>
+              {t("login.password")} <span className="text-on-error-container">*</span>
             </label>
             <input
               id="password"
               type="password"
-              placeholder="Your password"
+              placeholder={t("login.passwordPlaceholder")}
               required
               minLength={8}
               value={form.password}
@@ -175,18 +182,18 @@ export default function LoginPage() {
                 : "linear-gradient(135deg, #004253, #005b71)",
             }}
           >
-            {isSubmitting ? "Signing in…" : "Sign In"}
+            {isSubmitting ? t("login.submitting") : t("login.submit")}
           </button>
         </form>
 
         <p className="mt-6 text-center text-on-surface-variant text-sm">
-          Initial setup only needs to be completed once for each deployment.
+          {t("login.setupNote")}
         </p>
       </div>
 
       {/* API indicator */}
       <p className="mt-6 text-outline text-xs opacity-60">
-        API: {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}
+        {t("common.api")}: {process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}
       </p>
     </div>
   );
