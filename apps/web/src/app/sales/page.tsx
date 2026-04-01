@@ -292,9 +292,16 @@ export default function SalesPage() {
         0
       );
       setSuccessMessage(
-        text.saleVoidedMessage
+        `${text.saleVoidedMessage
           .replace("{saleNumber}", result.saleNumber)
-          .replace("{units}", formatNumber(totalRestored, locale))
+          .replace("{units}", formatNumber(totalRestored, locale))}${
+          result.prescription
+            ? ` ${text.prescriptionReopenedMessage.replace(
+                "{number}",
+                result.prescription.prescriptionNumber
+              )}`
+            : ""
+        }`
       );
       setRightTab("cart");
       await refreshWorkspace(token, reconciliationRange);
@@ -1469,6 +1476,8 @@ const SALES_COPY = {
     selectSaleBeforeVoiding: "Select a completed sale before voiding it.",
     voidReasonRequired: "A void reason is required.",
     saleVoidedMessage: "Sale {saleNumber} voided. {units} units restored to stock.",
+    prescriptionReopenedMessage:
+      "Prescription {number} returned to READY for re-dispensing.",
     cart: "Cart",
     voidSale: "Void Sale",
     reconciliation: "Reconciliation",
@@ -1581,6 +1590,8 @@ const SALES_COPY = {
     selectSaleBeforeVoiding: "ከመሰረዝ በፊት የተጠናቀቀ ሽያጭ ይምረጡ።",
     voidReasonRequired: "የመሰረዝ ምክንያት ያስፈልጋል።",
     saleVoidedMessage: "ሽያጭ {saleNumber} ተሰርዟል። {units} ዩኒቶች ወደ እቃ ተመልሰዋል።",
+    prescriptionReopenedMessage:
+      "ትዕዛዝ {number} እንደገና ለመስጠት ወደ READY ተመልሷል።",
     cart: "ጋሪ",
     voidSale: "ሽያጭ ሰርዝ",
     reconciliation: "ማስታረቅ",
@@ -1689,6 +1700,8 @@ const SALES_COPY = {
     selectSaleBeforeVoiding: "Haqa dura gurgurtaa xumurame filadhu.",
     voidReasonRequired: "Sababni haqaa barbaachisaadha.",
     saleVoidedMessage: "Gurgurtaan {saleNumber} haqameera. Yuunitiin {units} gara kuusaa deebi'eera.",
+    prescriptionReopenedMessage:
+      "Ajajni {number} irra deebi'anii kennuuf gara READYtti deebi'eera.",
     cart: "Gaarii",
     voidSale: "Gurgurtaa Haqi",
     reconciliation: "Wal Simsiisuu",

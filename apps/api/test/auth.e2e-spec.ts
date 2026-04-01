@@ -1651,6 +1651,7 @@ async function main() {
         } | null;
       };
       sale: {
+        id: string;
         saleNumber: string;
         totalAmount: number;
         paymentMethod: string;
@@ -1928,6 +1929,107 @@ async function main() {
     assert.notEqual(
       autoBatchStockInOneResponse.body.batch.batchNumber,
       autoBatchStockInTwoResponse.body.batch.batchNumber
+    );
+
+    console.log("52. Voiding the prescription-linked sale and reopening the prescription");
+    const voidPrescriptionSaleResponse = await requestJson<{
+      saleNumber: string;
+      status: string;
+      reason: string;
+      prescription: {
+        id: string;
+        prescriptionNumber: string;
+        status: string;
+      } | null;
+    }>(
+      context.baseUrl,
+      `/sales/${dispensePrescriptionResponse.body.sale.id}/void`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          reason: "Prescription correction",
+          notes: "Patient requested re-check before final dispense",
+        }),
+      }
+    );
+
+    assert.equal(voidPrescriptionSaleResponse.status, 200);
+    assert.equal(
+      voidPrescriptionSaleResponse.body.saleNumber,
+      dispensePrescriptionResponse.body.sale.saleNumber
+    );
+    assert.equal(voidPrescriptionSaleResponse.body.status, "VOIDED");
+    assert.equal(voidPrescriptionSaleResponse.body.reason, "Prescription correction");
+    assert.equal(
+      voidPrescriptionSaleResponse.body.prescription?.prescriptionNumber,
+      createPrescriptionResponse.body.prescriptionNumber
+    );
+    assert.equal(voidPrescriptionSaleResponse.body.prescription?.status, "READY");
+
+    console.log("53. Verifying the prescription is back to READY");
+    const prescriptionsAfterVoidResponse = await requestJson<{
+      metrics: {
+        activeQueueCount: number;
+        readyCount: number;
+        dispensedTodayCount: number;
+      };
+      prescriptions: Array<{
+        id: string;
+        status: string;
+        sale: {
+          saleNumber: string;
+        } | null;
+      }>;
+    }>(context.baseUrl, "/prescriptions", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(prescriptionsAfterVoidResponse.status, 200);
+    assert.equal(prescriptionsAfterVoidResponse.body.metrics.activeQueueCount, 1);
+    assert.equal(prescriptionsAfterVoidResponse.body.metrics.readyCount, 1);
+    assert.equal(prescriptionsAfterVoidResponse.body.metrics.dispensedTodayCount, 0);
+    assert.equal(
+      prescriptionsAfterVoidResponse.body.prescriptions[0]?.status,
+      "READY"
+    );
+    assert.equal(prescriptionsAfterVoidResponse.body.prescriptions[0]?.sale, null);
+
+    console.log("54. Re-dispensing the reopened prescription");
+    const redispensePrescriptionResponse = await requestJson<{
+      prescription: {
+        status: string;
+      };
+      sale: {
+        saleNumber: string;
+        paymentMethod: string;
+        totalAmount: number;
+      };
+    }>(
+      context.baseUrl,
+      `/prescriptions/${createPrescriptionResponse.body.id}/dispense`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          paymentMethod: "CASH",
+        }),
+      }
+    );
+
+    assert.equal(redispensePrescriptionResponse.status, 201);
+    assert.equal(redispensePrescriptionResponse.body.prescription.status, "DISPENSED");
+    assert.equal(redispensePrescriptionResponse.body.sale.paymentMethod, "CASH");
+    assert.equal(redispensePrescriptionResponse.body.sale.totalAmount, 30);
+    assert.notEqual(
+      redispensePrescriptionResponse.body.sale.saleNumber,
+      dispensePrescriptionResponse.body.sale.saleNumber
     );
 
     console.log("Prescription queue e2e checks passed.");

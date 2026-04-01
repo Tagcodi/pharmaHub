@@ -684,6 +684,13 @@ export class SalesService {
         branchId: branch.id,
       },
       include: {
+        prescription: {
+          select: {
+            id: true,
+            prescriptionNumber: true,
+            status: true,
+          },
+        },
         items: {
           include: {
             medicine: {
@@ -715,12 +722,19 @@ export class SalesService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
+      let reopenedPrescription: {
+        id: string;
+        prescriptionNumber: string;
+        status: string;
+      } | null = null;
+
       const updatedSale = await tx.sale.update({
         where: {
           id: sale.id,
         },
         data: {
           status: SaleStatus.VOIDED,
+          prescriptionId: sale.prescriptionId ? null : undefined,
         },
       });
 
@@ -762,6 +776,45 @@ export class SalesService {
         });
       }
 
+      if (sale.prescriptionId && sale.prescription) {
+        const updatedPrescription = await tx.prescription.update({
+          where: {
+            id: sale.prescriptionId,
+          },
+          data: {
+            status: "READY",
+            dispensedAt: null,
+          },
+          select: {
+            id: true,
+            prescriptionNumber: true,
+            status: true,
+          },
+        });
+
+        reopenedPrescription = updatedPrescription;
+
+        await tx.auditLog.create({
+          data: {
+            pharmacyId: currentUser.pharmacyId,
+            branchId: branch.id,
+            userId: currentUser.userId,
+            action: AuditAction.PRESCRIPTION_STATUS_UPDATED,
+            entityType: "Prescription",
+            entityId: updatedPrescription.id,
+            metadata: {
+              prescriptionNumber: updatedPrescription.prescriptionNumber,
+              previousStatus: sale.prescription.status,
+              status: updatedPrescription.status,
+              source: "SALE_VOIDED",
+              saleNumber: sale.saleNumber,
+              reason,
+              notes,
+            },
+          },
+        });
+      }
+
       await tx.auditLog.create({
         data: {
           pharmacyId: currentUser.pharmacyId,
@@ -776,6 +829,8 @@ export class SalesService {
             itemCount: sale.items.reduce((sum, item) => sum + item.quantity, 0),
             reason,
             notes,
+            prescriptionNumber: sale.prescription?.prescriptionNumber ?? null,
+            prescriptionReopened: reopenedPrescription ? true : false,
           },
         },
       });
@@ -783,6 +838,7 @@ export class SalesService {
       return {
         sale: updatedSale,
         restoredItems,
+        prescription: reopenedPrescription,
       };
     });
 
@@ -797,6 +853,7 @@ export class SalesService {
       reason,
       notes,
       items: result.restoredItems,
+      prescription: result.prescription,
     };
   }
 

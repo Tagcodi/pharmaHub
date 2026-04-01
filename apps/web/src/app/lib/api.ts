@@ -764,6 +764,11 @@ export type VoidSaleResponse = {
     unitPrice: number;
     lineTotal: number;
   }>;
+  prescription: {
+    id: string;
+    prescriptionNumber: string;
+    status: "READY";
+  } | null;
 };
 
 export type SalesReconciliationResponse = {
