@@ -5,6 +5,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../../components/AppShell";
 import { AppLoading } from "../../components/ui/AppLoading";
+import { useI18n } from "../../i18n/I18nProvider";
+import { formatCurrency } from "../../i18n/format";
 import {
   fetchJson,
   formatError,
@@ -37,6 +39,8 @@ const initialForm = {
 
 export default function StockAdjustPage() {
   const router = useRouter();
+  const { locale } = useI18n();
+  const text = STOCK_IN_COPY[locale] as (typeof STOCK_IN_COPY)["en"];
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [catalog, setCatalog] = useState<MedicineCatalogRecord[]>([]);
   const [requestedMedicineId, setRequestedMedicineId] = useState<string | null>(null);
@@ -165,12 +169,12 @@ export default function StockAdjustPage() {
     }
 
     if (form.medicineMode === "existing" && !form.medicineId) {
-      setError("Select a medicine before receiving stock.");
+      setError(text.selectMedicineBeforeReceiving);
       return;
     }
 
     if (form.medicineMode === "new" && !form.name.trim()) {
-      setError("Medicine name is required for a new catalog item.");
+      setError(text.medicineNameRequired);
       return;
     }
 
@@ -215,7 +219,9 @@ export default function StockAdjustPage() {
       });
 
       setSuccessMsg(
-        `${result.medicine.name} batch ${result.batch.batchNumber} is now in inventory.`
+        text.stockReceivedMessage
+          .replace("{medicine}", result.medicine.name)
+          .replace("{batch}", result.batch.batchNumber)
       );
 
       setTimeout(() => {
@@ -230,7 +236,7 @@ export default function StockAdjustPage() {
   }
 
   if (isLoading) {
-    return <AppLoading message="Loading stock intake…" />;
+    return <AppLoading message={text.loadingStockIntake} />;
   }
 
   if (!session) {
@@ -242,7 +248,7 @@ export default function StockAdjustPage() {
       <div className="mx-auto w-full max-w-[1240px] px-8 py-8">
         <nav className="mb-5 flex items-center gap-2 text-xs text-on-surface-variant">
           <Link href="/medicines" className="transition-colors hover:text-on-surface">
-            Inventory
+            {text.inventory}
           </Link>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path
@@ -252,18 +258,19 @@ export default function StockAdjustPage() {
               strokeLinecap="round"
             />
           </svg>
-          <span className="font-semibold text-on-surface">Receive Stock</span>
+          <span className="font-semibold text-on-surface">{text.receiveStock}</span>
         </nav>
 
         <div className="mb-8 flex items-center justify-between gap-4">
           <div>
             <h1 className="text-[2rem] font-bold leading-none tracking-[-0.04em] text-on-surface">
-              Receive Stock
+              {text.receiveStock}
             </h1>
             <p className="mt-2 text-sm text-on-surface-variant">
-              Add a new batch into{" "}
-              {session.branch?.name ?? "the default branch"} with real expiry,
-              pricing, and supplier details.
+              {text.receiveStockDescription.replace(
+                "{branch}",
+                session.branch?.name ?? text.defaultBranch
+              )}
             </p>
           </div>
 
@@ -273,7 +280,7 @@ export default function StockAdjustPage() {
               className="flex h-10 items-center rounded px-5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-high"
               style={{ border: "1px solid rgba(0,66,83,0.14)" }}
             >
-              Cancel
+              {text.cancel}
             </Link>
             <button
               form="stock-in-form"
@@ -297,7 +304,7 @@ export default function StockAdjustPage() {
                 <polyline points="17 21 17 13 7 13 7 21" />
                 <polyline points="7 3 7 8 15 8" />
               </svg>
-              {isSubmitting ? "Saving…" : "Save to Inventory"}
+              {isSubmitting ? text.saving : text.saveToInventory}
             </button>
           </div>
         </div>
@@ -335,7 +342,7 @@ export default function StockAdjustPage() {
                     />
                   </svg>
                 }
-                title="Catalog Selection"
+                title={text.catalogSelection}
               >
                 <div className="flex flex-wrap gap-2">
                   <ModeButton
@@ -347,14 +354,14 @@ export default function StockAdjustPage() {
                       )
                     }
                     disabled={catalog.length === 0}
-                    label="Existing Medicine"
-                    note={`${catalog.length} in catalog`}
+                    label={text.existingMedicine}
+                    note={`${catalog.length} ${text.inCatalog}`}
                   />
                   <ModeButton
                     active={form.medicineMode === "new"}
                     onClick={() => updateField("medicineMode", "new")}
-                    label="New Catalog Item"
-                    note="Creates medicine + batch"
+                    label={text.newCatalogItem}
+                    note={text.createsMedicineAndBatch}
                   />
                 </div>
 
@@ -364,7 +371,7 @@ export default function StockAdjustPage() {
                       htmlFor="medicineId"
                       className="mb-1.5 block text-[0.7rem] font-bold uppercase tracking-[0.06em] text-outline"
                     >
-                      Select Medicine
+                      {text.selectMedicine}
                     </label>
                     <select
                       id="medicineId"
@@ -378,7 +385,7 @@ export default function StockAdjustPage() {
                         border: "1px solid rgba(0,66,83,0.10)",
                       }}
                     >
-                      <option value="">Choose a catalog medicine</option>
+                      <option value="">{text.chooseCatalogMedicine}</option>
                       {catalog.map((medicine) => (
                         <option key={medicine.id} value={medicine.id}>
                           {medicine.name}
@@ -405,11 +412,11 @@ export default function StockAdjustPage() {
                                 selectedMedicine.strength,
                               ]
                                 .filter(Boolean)
-                                .join(" • ") || "Catalog record"}
+                                .join(" • ") || text.catalogRecord}
                             </p>
                           </div>
                           <span className="rounded-full bg-secondary-container px-2.5 py-1 text-[0.65rem] font-bold text-on-secondary-container">
-                            Existing
+                            {text.existing}
                           </span>
                         </div>
                       </div>
@@ -420,16 +427,16 @@ export default function StockAdjustPage() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <AdjustField
                         id="name"
-                        label="Medicine Name"
-                        placeholder="Amoxicillin"
+                        label={text.medicineName}
+                        placeholder={text.placeholderAmoxicillin}
                         required
                         value={form.name}
                         onChange={(value) => updateField("name", value)}
                       />
                       <AdjustField
                         id="brandName"
-                        label="Brand Name"
-                        placeholder="Amoxil"
+                        label={text.brandName}
+                        placeholder={text.placeholderAmoxil}
                         value={form.brandName}
                         onChange={(value) => updateField("brandName", value)}
                       />
@@ -438,15 +445,15 @@ export default function StockAdjustPage() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <AdjustField
                         id="genericName"
-                        label="Generic Name"
-                        placeholder="Amoxicillin trihydrate"
+                        label={text.genericName}
+                        placeholder={text.placeholderGeneric}
                         value={form.genericName}
                         onChange={(value) => updateField("genericName", value)}
                       />
                       <AdjustField
                         id="strength"
-                        label="Strength"
-                        placeholder="500 mg"
+                        label={text.strength}
+                        placeholder={text.placeholderStrength}
                         value={form.strength}
                         onChange={(value) => updateField("strength", value)}
                       />
@@ -455,29 +462,29 @@ export default function StockAdjustPage() {
                     <div className="grid gap-4 md:grid-cols-4">
                       <AdjustField
                         id="form"
-                        label="Form"
-                        placeholder="Tablet"
+                        label={text.form}
+                        placeholder={text.placeholderForm}
                         value={form.form}
                         onChange={(value) => updateField("form", value)}
                       />
                       <AdjustField
                         id="category"
-                        label="Category"
-                        placeholder="Antibiotic"
+                        label={text.category}
+                        placeholder={text.placeholderCategory}
                         value={form.category}
                         onChange={(value) => updateField("category", value)}
                       />
                       <AdjustField
                         id="unit"
-                        label="Unit"
-                        placeholder="Box"
+                        label={text.unit}
+                        placeholder={text.placeholderUnit}
                         value={form.unit}
                         onChange={(value) => updateField("unit", value)}
                       />
                       <AdjustField
                         id="sku"
-                        label="SKU"
-                        placeholder="MED-001"
+                        label={text.sku}
+                        placeholder={text.placeholderSku}
                         value={form.sku}
                         onChange={(value) => updateField("sku", value)}
                       />
@@ -504,20 +511,20 @@ export default function StockAdjustPage() {
                     />
                   </svg>
                 }
-                title="Batch Details"
+                title={text.batchDetails}
               >
                 <div className="grid gap-4 md:grid-cols-3">
                   <AdjustField
                     id="batchNumber"
-                    label="Batch Number"
-                    placeholder="BN-44291-X"
+                    label={text.batchNumber}
+                    placeholder={text.placeholderBatchNumber}
                     required
                     value={form.batchNumber}
                     onChange={(value) => updateField("batchNumber", value)}
                   />
                   <AdjustField
                     id="receivedAt"
-                    label="Received Date"
+                    label={text.receivedDate}
                     type="date"
                     required
                     value={form.receivedAt}
@@ -525,7 +532,7 @@ export default function StockAdjustPage() {
                   />
                   <AdjustField
                     id="expiryDate"
-                    label="Expiry Date"
+                    label={text.expiryDate}
                     type="date"
                     required
                     value={form.expiryDate}
@@ -549,25 +556,25 @@ export default function StockAdjustPage() {
                     <path d="M2 10h20" strokeLinecap="round" />
                   </svg>
                 }
-                title="Quantity & Pricing"
+                title={text.quantityAndPricing}
               >
                 <div className="grid gap-6 md:grid-cols-3">
                   <MetricInput
                     id="quantity"
-                    label="Quantity Received"
-                    suffix="Units"
+                    label={text.quantityReceived}
+                    suffix={text.units}
                     value={form.quantity}
                     onChange={(value) => updateField("quantity", value)}
                   />
                   <MetricInput
                     id="costPrice"
-                    label="Unit Cost (ETB)"
+                    label={text.unitCostEtb}
                     value={form.costPrice}
                     onChange={(value) => updateField("costPrice", value)}
                   />
                   <MetricInput
                     id="sellingPrice"
-                    label="Selling Price (ETB)"
+                    label={text.sellingPriceEtb}
                     value={form.sellingPrice}
                     onChange={(value) => updateField("sellingPrice", value)}
                   />
@@ -597,26 +604,26 @@ export default function StockAdjustPage() {
                     <circle cx="18.5" cy="18.5" r="2.5" />
                   </svg>
                 }
-                title="Supplier & Branch"
+                title={text.supplierAndBranch}
               >
                 <div className="space-y-4">
                   <AdjustField
                     id="supplierName"
-                    label="Supplier Name"
-                    placeholder="Ethiopian Pharma Supply Service"
+                    label={text.supplierName}
+                    placeholder={text.placeholderSupplier}
                     value={form.supplierName}
                     onChange={(value) => updateField("supplierName", value)}
                   />
                   <SummaryLine
-                    label="Receiving branch"
-                    value={session.branch?.name ?? "Default branch"}
+                    label={text.receivingBranch}
+                    value={session.branch?.name ?? text.defaultBranch}
                   />
                   <SummaryLine
-                    label="Operator"
+                    label={text.operator}
                     value={session.user.fullName}
                   />
                   <SummaryLine
-                    label="Catalog records"
+                    label={text.catalogRecords}
                     value={String(catalog.length)}
                   />
                 </div>
@@ -627,30 +634,30 @@ export default function StockAdjustPage() {
                 style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
               >
                 <p className="mb-4 text-[0.65rem] font-bold uppercase tracking-[0.1em] text-white/55">
-                  Batch Valuation
+                  {text.batchValuation}
                 </p>
                 <div className="space-y-3">
                   <SummaryLine
                     inverse
-                    label="Total Cost"
-                    value={totalCost > 0 ? `${formatNumber(totalCost)} ETB` : "—"}
+                    label={text.totalCost}
+                    value={totalCost > 0 ? `${formatCurrency(totalCost, locale)} ETB` : text.notAvailable}
                   />
                   <SummaryLine
                     inverse
-                    label="Expected Retail Value"
+                    label={text.expectedRetailValue}
                     value={
                       expectedRevenue > 0
-                        ? `${formatNumber(expectedRevenue)} ETB`
-                        : "—"
+                        ? `${formatCurrency(expectedRevenue, locale)} ETB`
+                        : text.notAvailable
                     }
                   />
                   <SummaryLine
                     inverse
-                    label="Projected Margin"
+                    label={text.projectedMargin}
                     value={
                       totalCost > 0 && expectedRevenue > 0
                         ? `${(((expectedRevenue - totalCost) / expectedRevenue) * 100).toFixed(1)}%`
-                        : "—"
+                        : text.notAvailable
                     }
                   />
                 </div>
@@ -660,13 +667,13 @@ export default function StockAdjustPage() {
                   style={{ border: "1px solid rgba(255,255,255,0.08)" }}
                 >
                   <p className="text-xs font-semibold text-white/70">
-                    Ready to receive
+                    {text.readyToReceive}
                   </p>
                   <p className="mt-1 text-sm font-bold text-white">
-                    {selectedMedicine?.name || form.name || "New stock batch"}
+                    {selectedMedicine?.name || form.name || text.newStockBatch}
                   </p>
                   <p className="mt-1 text-xs text-white/70">
-                    Batch {form.batchNumber || "—"} • Expiry {form.expiryDate || "—"}
+                    {text.batch} {form.batchNumber || text.notAvailable} • {text.expiry} {form.expiryDate || text.notAvailable}
                   </p>
                 </div>
               </div>
@@ -676,12 +683,12 @@ export default function StockAdjustPage() {
                 style={{ boxShadow: "0 4px 16px rgba(0,66,83,0.06)" }}
               >
                 <p className="text-sm font-semibold text-on-surface">
-                  Stock-in rules
+                  {text.stockInRules}
                 </p>
                 <ul className="mt-3 space-y-2 text-xs leading-relaxed text-on-surface-variant">
-                  <li>Batch numbers must be unique per medicine in the same branch.</li>
-                  <li>Expiry date must be after the received date.</li>
-                  <li>Each stock-in creates an audit log and inventory movement record.</li>
+                  <li>{text.ruleUniqueBatch}</li>
+                  <li>{text.ruleExpiryAfterReceived}</li>
+                  <li>{text.ruleCreatesAudit}</li>
                 </ul>
               </div>
             </div>
@@ -856,13 +863,211 @@ function SummaryLine({
   );
 }
 
-function formatNumber(value: number) {
-  return value.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
 function getTodayInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
+
+const STOCK_IN_COPY = {
+  en: {
+    loadingStockIntake: "Loading stock intake…",
+    selectMedicineBeforeReceiving: "Select a medicine before receiving stock.",
+    medicineNameRequired: "Medicine name is required for a new catalog item.",
+    stockReceivedMessage: "{medicine} batch {batch} is now in inventory.",
+    inventory: "Inventory",
+    receiveStock: "Receive Stock",
+    receiveStockDescription:
+      "Add a new batch into {branch} with real expiry, pricing, and supplier details.",
+    defaultBranch: "the default branch",
+    cancel: "Cancel",
+    saving: "Saving…",
+    saveToInventory: "Save to Inventory",
+    catalogSelection: "Catalog Selection",
+    existingMedicine: "Existing Medicine",
+    inCatalog: "in catalog",
+    newCatalogItem: "New Catalog Item",
+    createsMedicineAndBatch: "Creates medicine + batch",
+    selectMedicine: "Select Medicine",
+    chooseCatalogMedicine: "Choose a catalog medicine",
+    catalogRecord: "Catalog record",
+    existing: "Existing",
+    medicineName: "Medicine Name",
+    placeholderAmoxicillin: "Amoxicillin",
+    brandName: "Brand Name",
+    placeholderAmoxil: "Amoxil",
+    genericName: "Generic Name",
+    placeholderGeneric: "Amoxicillin trihydrate",
+    strength: "Strength",
+    placeholderStrength: "500 mg",
+    form: "Form",
+    placeholderForm: "Tablet",
+    category: "Category",
+    placeholderCategory: "Antibiotic",
+    unit: "Unit",
+    placeholderUnit: "Box",
+    sku: "SKU",
+    placeholderSku: "MED-001",
+    batchDetails: "Batch Details",
+    batchNumber: "Batch Number",
+    placeholderBatchNumber: "BN-44291-X",
+    receivedDate: "Received Date",
+    expiryDate: "Expiry Date",
+    quantityAndPricing: "Quantity & Pricing",
+    quantityReceived: "Quantity Received",
+    units: "Units",
+    unitCostEtb: "Unit Cost (ETB)",
+    sellingPriceEtb: "Selling Price (ETB)",
+    supplierAndBranch: "Supplier & Branch",
+    supplierName: "Supplier Name",
+    placeholderSupplier: "Ethiopian Pharma Supply Service",
+    receivingBranch: "Receiving branch",
+    operator: "Operator",
+    catalogRecords: "Catalog records",
+    batchValuation: "Batch Valuation",
+    totalCost: "Total Cost",
+    expectedRetailValue: "Expected Retail Value",
+    projectedMargin: "Projected Margin",
+    readyToReceive: "Ready to receive",
+    newStockBatch: "New stock batch",
+    batch: "Batch",
+    expiry: "Expiry",
+    notAvailable: "—",
+    stockInRules: "Stock-in rules",
+    ruleUniqueBatch: "Batch numbers must be unique per medicine in the same branch.",
+    ruleExpiryAfterReceived: "Expiry date must be after the received date.",
+    ruleCreatesAudit: "Each stock-in creates an audit log and inventory movement record.",
+  },
+  am: {
+    loadingStockIntake: "የእቃ መቀበያ በመጫን ላይ…",
+    selectMedicineBeforeReceiving: "እቃ ከመቀበልዎ በፊት መድሃኒት ይምረጡ።",
+    medicineNameRequired: "ለአዲስ የካታሎግ እቃ የመድሃኒት ስም ያስፈልጋል።",
+    stockReceivedMessage: "{medicine} ባች {batch} አሁን በእቃ ውስጥ ነው።",
+    inventory: "እቃ",
+    receiveStock: "እቃ ተቀበል",
+    receiveStockDescription: "እውነተኛ ማብቂያ፣ ዋጋ እና የአቅራቢ ዝርዝር ያለውን አዲስ ባች ወደ {branch} ያክሉ።",
+    defaultBranch: "ነባሪ ቅርንጫፍ",
+    cancel: "ሰርዝ",
+    saving: "በማስቀመጥ ላይ…",
+    saveToInventory: "ወደ እቃ አስቀምጥ",
+    catalogSelection: "የካታሎግ ምርጫ",
+    existingMedicine: "ነባር መድሃኒት",
+    inCatalog: "በካታሎግ ውስጥ",
+    newCatalogItem: "አዲስ የካታሎግ እቃ",
+    createsMedicineAndBatch: "መድሃኒት + ባች ይፈጥራል",
+    selectMedicine: "መድሃኒት ይምረጡ",
+    chooseCatalogMedicine: "ከካታሎግ መድሃኒት ይምረጡ",
+    catalogRecord: "የካታሎግ መዝገብ",
+    existing: "ነባር",
+    medicineName: "የመድሃኒት ስም",
+    placeholderAmoxicillin: "አሞክሲሲሊን",
+    brandName: "የብራንድ ስም",
+    placeholderAmoxil: "አሞክሲል",
+    genericName: "ጄኔሪክ ስም",
+    placeholderGeneric: "አሞክሲሲሊን ትራይሃይድሬት",
+    strength: "ጥንካሬ",
+    placeholderStrength: "500 mg",
+    form: "ቅርጽ",
+    placeholderForm: "ታብሌት",
+    category: "ምድብ",
+    placeholderCategory: "አንቲባዮቲክ",
+    unit: "መለኪያ",
+    placeholderUnit: "ሳጥን",
+    sku: "SKU",
+    placeholderSku: "MED-001",
+    batchDetails: "የባች ዝርዝሮች",
+    batchNumber: "የባች ቁጥር",
+    placeholderBatchNumber: "BN-44291-X",
+    receivedDate: "የተቀበለበት ቀን",
+    expiryDate: "የማብቂያ ቀን",
+    quantityAndPricing: "ብዛት እና ዋጋ",
+    quantityReceived: "የተቀበለ ብዛት",
+    units: "ዩኒቶች",
+    unitCostEtb: "የአንድ ዩኒት ወጪ (ETB)",
+    sellingPriceEtb: "የመሸጫ ዋጋ (ETB)",
+    supplierAndBranch: "አቅራቢ እና ቅርንጫፍ",
+    supplierName: "የአቅራቢ ስም",
+    placeholderSupplier: "የኢትዮጵያ ፋርማ አቅርቦት አገልግሎት",
+    receivingBranch: "ተቀባይ ቅርንጫፍ",
+    operator: "ኦፕሬተር",
+    catalogRecords: "የካታሎግ መዝገቦች",
+    batchValuation: "የባች ግምት",
+    totalCost: "ጠቅላላ ወጪ",
+    expectedRetailValue: "የሚጠበቀው የችርቻሮ ዋጋ",
+    projectedMargin: "የሚጠበቀው ትርፍ",
+    readyToReceive: "ለመቀበል ዝግጁ",
+    newStockBatch: "አዲስ የእቃ ባች",
+    batch: "ባች",
+    expiry: "ማብቂያ",
+    notAvailable: "—",
+    stockInRules: "የእቃ መግቢያ ደንቦች",
+    ruleUniqueBatch: "በተመሳሳይ ቅርንጫፍ ውስጥ የባች ቁጥሮች ለእያንዳንዱ መድሃኒት ልዩ መሆን አለባቸው።",
+    ruleExpiryAfterReceived: "የማብቂያ ቀን ከተቀበለበት ቀን በኋላ መሆን አለበት።",
+    ruleCreatesAudit: "እያንዳንዱ የእቃ መግቢያ የኦዲት መዝገብ እና የእቃ እንቅስቃሴ መዝገብ ይፈጥራል።",
+  },
+  om: {
+    loadingStockIntake: "Galmeen kuusaa fe'amaa jira…",
+    selectMedicineBeforeReceiving: "Kuusaa fudhachuu dura qoricha filadhu.",
+    medicineNameRequired: "Maqaan qorichaa meeshaa kaataalogii haaraaf barbaachisaadha.",
+    stockReceivedMessage: "{medicine} baachiin {batch} amma kuusaa keessa jira.",
+    inventory: "Kuusaa",
+    receiveStock: "Kuusaa Fudhadhu",
+    receiveStockDescription: "Baachii haaraa xumuramuu, gatii fi odeeffannoo dhiyeessaa dhugaa qabu gara {branch} dabali.",
+    defaultBranch: "damee durtii",
+    cancel: "Haqi",
+    saving: "Olkaa'amaa jira…",
+    saveToInventory: "Gara Kuusaatti Olkaa'i",
+    catalogSelection: "Filannoo Kaataalogii",
+    existingMedicine: "Qoricha Jiru",
+    inCatalog: "kaataalogii keessa",
+    newCatalogItem: "Meeshaa Kaataalogii Haaraa",
+    createsMedicineAndBatch: "Qoricha + baachii uuma",
+    selectMedicine: "Qoricha filadhu",
+    chooseCatalogMedicine: "Qoricha kaataalogii filadhu",
+    catalogRecord: "Galmee kaataalogii",
+    existing: "Jira",
+    medicineName: "Maqaa qorichaa",
+    placeholderAmoxicillin: "Amoxicillin",
+    brandName: "Maqaa biraandii",
+    placeholderAmoxil: "Amoxil",
+    genericName: "Maqaa generic",
+    placeholderGeneric: "Amoxicillin trihydrate",
+    strength: "Cimina",
+    placeholderStrength: "500 mg",
+    form: "Bifa",
+    placeholderForm: "Tablet",
+    category: "Gosa",
+    placeholderCategory: "Antibiotic",
+    unit: "Yuunitii",
+    placeholderUnit: "Saanduqa",
+    sku: "SKU",
+    placeholderSku: "MED-001",
+    batchDetails: "Odeeffannoo Baachii",
+    batchNumber: "Lakkoofsa baachii",
+    placeholderBatchNumber: "BN-44291-X",
+    receivedDate: "Guyyaa fudhatame",
+    expiryDate: "Guyyaa xumuraa",
+    quantityAndPricing: "Baay'ina fi Gatii",
+    quantityReceived: "Baay'ina fudhatame",
+    units: "yuunitii",
+    unitCostEtb: "Baasiin yuunitii tokkoo (ETB)",
+    sellingPriceEtb: "Gatii gurgurtaa (ETB)",
+    supplierAndBranch: "Dhiyeessaa fi Damee",
+    supplierName: "Maqaa dhiyeessaa",
+    placeholderSupplier: "Ethiopian Pharma Supply Service",
+    receivingBranch: "Damee fudhatu",
+    operator: "Hojii raawwataa",
+    catalogRecords: "Galmeewwan kaataalogii",
+    batchValuation: "Gatii Baachii",
+    totalCost: "Baasiin waliigalaa",
+    expectedRetailValue: "Gatii gabaaf dhiyaatu",
+    projectedMargin: "Bu'aa eegamu",
+    readyToReceive: "Fudhachuuf qophaa'eera",
+    newStockBatch: "Baachii kuusaa haaraa",
+    batch: "Baachii",
+    expiry: "Xumuramuu",
+    notAvailable: "—",
+    stockInRules: "Seerota kuusaa galchuu",
+    ruleUniqueBatch: "Lakkoofsi baachii damee tokko keessatti qoricha tokkoof adda ta'uu qaba.",
+    ruleExpiryAfterReceived: "Guyyaan xumuraa guyyaa fudhatame booddee ta'uu qaba.",
+    ruleCreatesAudit: "Kuusaan galuu hundi galmee odiitii fi sochii kuusaa uuma.",
+  },
+} as const;
