@@ -9,5 +9,6 @@ import { SalesService } from "./sales.service";
   imports: [PrismaModule, AuthModule, InventoryModule],
   controllers: [SalesController],
   providers: [SalesService],
+  exports: [SalesService],
 })
 export class SalesModule {}

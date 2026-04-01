@@ -1638,7 +1638,165 @@ async function main() {
     assert.equal(prescriptionsAfterUpdateResponse.body.metrics.readyCount, 1);
     assert.equal(prescriptionsAfterUpdateResponse.body.prescriptions[0]?.status, "READY");
 
-    console.log("47. Auto-generating unique SKUs for similar medicines");
+    console.log("47. Dispensing the ready prescription into a live sale");
+    const dispensePrescriptionResponse = await requestJson<{
+      prescription: {
+        prescriptionNumber: string;
+        status: string;
+        dispensedAt: string | null;
+        sale: {
+          saleNumber: string;
+          totalAmount: number;
+          paymentMethod: string;
+        } | null;
+      };
+      sale: {
+        saleNumber: string;
+        totalAmount: number;
+        paymentMethod: string;
+        items: Array<{
+          medicineName: string;
+          quantity: number;
+          batchNumber: string;
+        }>;
+      };
+    }>(
+      context.baseUrl,
+      `/prescriptions/${createPrescriptionResponse.body.id}/dispense`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          paymentMethod: "MOBILE_MONEY",
+        }),
+      }
+    );
+
+    assert.equal(dispensePrescriptionResponse.status, 201);
+    assert.equal(
+      dispensePrescriptionResponse.body.prescription.prescriptionNumber,
+      createPrescriptionResponse.body.prescriptionNumber
+    );
+    assert.equal(dispensePrescriptionResponse.body.prescription.status, "DISPENSED");
+    assert.match(
+      dispensePrescriptionResponse.body.prescription.dispensedAt ?? "",
+      /\d{4}-\d{2}-\d{2}T/
+    );
+    assert.equal(dispensePrescriptionResponse.body.sale.paymentMethod, "MOBILE_MONEY");
+    assert.equal(dispensePrescriptionResponse.body.sale.totalAmount, 30);
+    assert.equal(
+      dispensePrescriptionResponse.body.sale.items[0]?.medicineName,
+      "Paracetamol"
+    );
+    assert.equal(dispensePrescriptionResponse.body.sale.items[0]?.quantity, 2);
+    assert.equal(
+      dispensePrescriptionResponse.body.prescription.sale?.saleNumber,
+      dispensePrescriptionResponse.body.sale.saleNumber
+    );
+
+    console.log("48. Verifying the dispensed prescription and linked sale in the queue");
+    const prescriptionsAfterDispenseResponse = await requestJson<{
+      metrics: {
+        activeQueueCount: number;
+        readyCount: number;
+        dispensedTodayCount: number;
+      };
+      prescriptions: Array<{
+        status: string;
+        sale: {
+          saleNumber: string;
+          paymentMethod: string;
+          totalAmount: number;
+        } | null;
+      }>;
+    }>(context.baseUrl, "/prescriptions", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(prescriptionsAfterDispenseResponse.status, 200);
+    assert.equal(prescriptionsAfterDispenseResponse.body.metrics.activeQueueCount, 0);
+    assert.equal(prescriptionsAfterDispenseResponse.body.metrics.readyCount, 0);
+    assert.equal(prescriptionsAfterDispenseResponse.body.metrics.dispensedTodayCount, 1);
+    assert.equal(
+      prescriptionsAfterDispenseResponse.body.prescriptions[0]?.status,
+      "DISPENSED"
+    );
+    assert.equal(
+      prescriptionsAfterDispenseResponse.body.prescriptions[0]?.sale?.saleNumber,
+      dispensePrescriptionResponse.body.sale.saleNumber
+    );
+    assert.equal(
+      prescriptionsAfterDispenseResponse.body.prescriptions[0]?.sale?.paymentMethod,
+      "MOBILE_MONEY"
+    );
+    assert.equal(
+      prescriptionsAfterDispenseResponse.body.prescriptions[0]?.sale?.totalAmount,
+      30
+    );
+
+    console.log("49. Verifying stock and sales reflect the dispensed prescription");
+    const inventoryAfterPrescriptionDispenseResponse = await requestJson<{
+      totals: {
+        totalUnitsOnHand: number;
+        totalStockValue: number;
+      };
+      medicines: Array<{
+        totalQuantityOnHand: number;
+      }>;
+    }>(context.baseUrl, "/inventory/summary", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(inventoryAfterPrescriptionDispenseResponse.status, 200);
+    assert.equal(inventoryAfterPrescriptionDispenseResponse.body.totals.totalUnitsOnHand, 22);
+    assert.equal(inventoryAfterPrescriptionDispenseResponse.body.totals.totalStockValue, 346);
+    assert.equal(
+      inventoryAfterPrescriptionDispenseResponse.body.medicines[0]?.totalQuantityOnHand,
+      22
+    );
+
+    const salesOverviewAfterPrescriptionDispenseResponse = await requestJson<{
+      metrics: {
+        todaySalesAmount: number;
+        todaySalesCount: number;
+        averageTicket: number;
+      };
+      recentSales: Array<{
+        saleNumber: string;
+        totalAmount: number;
+        paymentMethod: string;
+        status: string;
+      }>;
+    }>(context.baseUrl, "/sales/overview", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(salesOverviewAfterPrescriptionDispenseResponse.status, 200);
+    assert.equal(salesOverviewAfterPrescriptionDispenseResponse.body.metrics.todaySalesAmount, 30);
+    assert.equal(salesOverviewAfterPrescriptionDispenseResponse.body.metrics.todaySalesCount, 1);
+    assert.equal(salesOverviewAfterPrescriptionDispenseResponse.body.metrics.averageTicket, 30);
+    assert.equal(
+      salesOverviewAfterPrescriptionDispenseResponse.body.recentSales[0]?.saleNumber,
+      dispensePrescriptionResponse.body.sale.saleNumber
+    );
+    assert.equal(
+      salesOverviewAfterPrescriptionDispenseResponse.body.recentSales[0]?.paymentMethod,
+      "MOBILE_MONEY"
+    );
+    assert.equal(
+      salesOverviewAfterPrescriptionDispenseResponse.body.recentSales[0]?.status,
+      "COMPLETED"
+    );
+
+    console.log("50. Auto-generating unique SKUs for similar medicines");
     const createAutoSkuMedicineOneResponse = await requestJson<{
       id: string;
       name: string;
@@ -1693,7 +1851,7 @@ async function main() {
       createAutoSkuMedicineTwoResponse.body.sku
     );
 
-    console.log("48. Auto-generating unique batch numbers during stock intake");
+    console.log("51. Auto-generating unique batch numbers during stock intake");
     const autoBatchExpiryDate = new Date(purchaseExpiryDate);
     autoBatchExpiryDate.setUTCDate(autoBatchExpiryDate.getUTCDate() + 30);
 
