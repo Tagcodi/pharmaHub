@@ -1025,11 +1025,14 @@ async function main() {
         voidedSaleCount: number;
       };
       lowStockMedicines: Array<{
+        id: string;
         name: string;
         totalQuantityOnHand: number;
         status: string;
       }>;
       expiryBatches: Array<{
+        id: string;
+        medicineId: string;
         batchNumber: string;
         quantityOnHand: number;
         status: string;
@@ -1037,8 +1040,11 @@ async function main() {
       inventorySignals: Array<{
         type: string;
         medicineName: string;
+        medicineId: string | null;
+        stockBatchId: string | null;
       }>;
       salesSignals: Array<{
+        saleId: string | null;
         saleNumber: string;
         reason: string | null;
       }>;
@@ -1056,6 +1062,10 @@ async function main() {
     assert.equal(alertsOverviewResponse.body.metrics.suspectedLossCount, 1);
     assert.equal(alertsOverviewResponse.body.metrics.cycleCountShortageCount, 1);
     assert.equal(alertsOverviewResponse.body.metrics.voidedSaleCount, 1);
+    assert.equal(
+      alertsOverviewResponse.body.lowStockMedicines[0]?.id,
+      createMedicineResponse.body.id
+    );
     assert.equal(alertsOverviewResponse.body.lowStockMedicines[0]?.name, "Paracetamol");
     assert.equal(
       alertsOverviewResponse.body.lowStockMedicines[0]?.totalQuantityOnHand,
@@ -1063,6 +1073,10 @@ async function main() {
     );
     assert.equal(alertsOverviewResponse.body.lowStockMedicines[0]?.status, "WARNING");
     assert.equal(alertsOverviewResponse.body.expiryBatches[0]?.batchNumber, "B-2026-001");
+    assert.equal(
+      alertsOverviewResponse.body.expiryBatches[0]?.medicineId,
+      createMedicineResponse.body.id
+    );
     assert.equal(alertsOverviewResponse.body.expiryBatches[0]?.quantityOnHand, 8);
     assert.equal(alertsOverviewResponse.body.expiryBatches[0]?.status, "WARNING");
     assert.ok(
@@ -1074,12 +1088,24 @@ async function main() {
     assert.ok(
       alertsOverviewResponse.body.inventorySignals.some(
         (signal) =>
+          signal.type === "THEFT_SUSPECTED" &&
+          signal.medicineId === createMedicineResponse.body.id &&
+          Boolean(signal.stockBatchId)
+      )
+    );
+    assert.ok(
+      alertsOverviewResponse.body.inventorySignals.some(
+        (signal) =>
           signal.type === "COUNT_SHORTAGE" && signal.medicineName === "Paracetamol"
       )
     );
     assert.equal(
       alertsOverviewResponse.body.salesSignals[0]?.saleNumber,
       createSaleResponse.body.saleNumber
+    );
+    assert.equal(
+      alertsOverviewResponse.body.salesSignals[0]?.saleId,
+      createSaleResponse.body.id
     );
     assert.equal(
       alertsOverviewResponse.body.salesSignals[0]?.reason,

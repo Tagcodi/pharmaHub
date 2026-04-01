@@ -43,6 +43,9 @@ export default function PurchaseOrdersPage() {
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [catalog, setCatalog] = useState<PurchaseOrderCatalogResponse | null>(null);
   const [orders, setOrders] = useState<PurchaseOrdersResponse | null>(null);
+  const [requestedMedicineId, setRequestedMedicineId] = useState<string | null>(
+    null
+  );
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [supplierName, setSupplierName] = useState("");
   const [notes, setNotes] = useState("");
@@ -61,6 +64,15 @@ export default function PurchaseOrdersPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    setRequestedMedicineId(params.get("medicineId"));
+  }, []);
+
+  useEffect(() => {
     void loadPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -70,8 +82,14 @@ export default function PurchaseOrdersPage() {
       return;
     }
 
+    const preferredMedicineId =
+      requestedMedicineId &&
+      catalog.medicines.some((medicine) => medicine.id === requestedMedicineId)
+        ? requestedMedicineId
+        : catalog.lowStockMedicines[0]?.id ?? catalog.medicines[0]?.id ?? "";
+
     if (!selectedMedicineId) {
-      setSelectedMedicineId(catalog.lowStockMedicines[0]?.id ?? catalog.medicines[0]?.id ?? "");
+      setSelectedMedicineId(preferredMedicineId);
       return;
     }
 
@@ -80,9 +98,9 @@ export default function PurchaseOrdersPage() {
     );
 
     if (!stillExists) {
-      setSelectedMedicineId(catalog.lowStockMedicines[0]?.id ?? catalog.medicines[0]?.id ?? "");
+      setSelectedMedicineId(preferredMedicineId);
     }
-  }, [catalog, selectedMedicineId]);
+  }, [catalog, requestedMedicineId, selectedMedicineId]);
 
   useEffect(() => {
     if (!catalog?.medicines.length) {

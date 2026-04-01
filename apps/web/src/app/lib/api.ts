@@ -464,6 +464,8 @@ export type AlertsOverviewResponse = {
     description: string;
     medicineName: string;
     batchNumber: string;
+    medicineId: string | null;
+    stockBatchId: string | null;
     quantityDelta: number;
     actor: string;
     createdAt: string;
@@ -475,6 +477,7 @@ export type AlertsOverviewResponse = {
     title: string;
     description: string;
     saleNumber: string;
+    saleId: string | null;
     reason: string | null;
     totalAmount: number | null;
     actor: string;

@@ -62,6 +62,7 @@ export default function SalesPage() {
     useState<(typeof PAYMENT_METHODS)[number]["value"]>("CASH");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [rightTab, setRightTab] = useState<RightTab>("cart");
+  const [requestedSaleId, setRequestedSaleId] = useState<string | null>(null);
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [voidReason, setVoidReason] = useState("Dispensing mistake");
   const [voidNotes, setVoidNotes] = useState("");
@@ -78,9 +79,37 @@ export default function SalesPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    setRequestedSaleId(params.get("saleId"));
+  }, []);
+
+  useEffect(() => {
     void loadPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!requestedSaleId || !overview?.recentSales.length) {
+      return;
+    }
+
+    if (session?.user.role === "CASHIER") {
+      return;
+    }
+
+    const matchedSale = overview.recentSales.find((sale) => sale.id === requestedSaleId);
+
+    if (!matchedSale) {
+      return;
+    }
+
+    setSelectedSaleId(matchedSale.id);
+    setRightTab("void");
+  }, [overview?.recentSales, requestedSaleId, session?.user.role]);
 
   async function loadPage() {
     const token = getStoredToken();

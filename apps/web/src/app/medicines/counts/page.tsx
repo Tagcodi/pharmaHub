@@ -33,6 +33,7 @@ export default function CycleCountsPage() {
   const [catalog, setCatalog] = useState<CycleCountCatalogResponse | null>(null);
   const [history, setHistory] = useState<CycleCountsResponse | null>(null);
   const [requestedMedicineId, setRequestedMedicineId] = useState<string | null>(null);
+  const [requestedBatchId, setRequestedBatchId] = useState<string | null>(null);
   const [selectedBatchId, setSelectedBatchId] = useState("");
   const [search, setSearch] = useState("");
   const [countedQuantity, setCountedQuantity] = useState("");
@@ -49,6 +50,7 @@ export default function CycleCountsPage() {
 
     const params = new URLSearchParams(window.location.search);
     setRequestedMedicineId(params.get("medicineId"));
+    setRequestedBatchId(params.get("stockBatchId"));
   }, []);
 
   useEffect(() => {
@@ -62,21 +64,35 @@ export default function CycleCountsPage() {
       return;
     }
 
+    const requestedBatch =
+      requestedBatchId
+        ? catalog.batches.find((batch) => batch.stockBatchId === requestedBatchId)
+        : null;
     const preferredBatch = requestedMedicineId
       ? catalog.batches.find((batch) => batch.medicineId === requestedMedicineId)
       : null;
 
     if (!selectedBatchId) {
-      setSelectedBatchId(preferredBatch?.stockBatchId ?? catalog.batches[0]?.stockBatchId ?? "");
+      setSelectedBatchId(
+        requestedBatch?.stockBatchId ??
+          preferredBatch?.stockBatchId ??
+          catalog.batches[0]?.stockBatchId ??
+          ""
+      );
       return;
     }
 
     const stillExists = catalog.batches.some((batch) => batch.stockBatchId === selectedBatchId);
 
     if (!stillExists) {
-      setSelectedBatchId(preferredBatch?.stockBatchId ?? catalog.batches[0]?.stockBatchId ?? "");
+      setSelectedBatchId(
+        requestedBatch?.stockBatchId ??
+          preferredBatch?.stockBatchId ??
+          catalog.batches[0]?.stockBatchId ??
+          ""
+      );
     }
-  }, [catalog, requestedMedicineId, selectedBatchId]);
+  }, [catalog, requestedBatchId, requestedMedicineId, selectedBatchId]);
 
   useEffect(() => {
     if (!selectedBatch) {

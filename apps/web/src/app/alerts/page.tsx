@@ -259,7 +259,7 @@ export default function AlertsPage() {
 
             {lowStockMedicines.length ? (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[680px] text-left">
+                <table className="w-full min-w-[760px] text-left">
                   <thead>
                     <tr className="text-[0.65rem] font-bold uppercase tracking-[0.08em] text-outline">
                       <th className="px-6 pb-3">Medicine</th>
@@ -268,6 +268,7 @@ export default function AlertsPage() {
                       <th className="pb-3 text-right">Value</th>
                       <th className="pb-3">Next Expiry</th>
                       <th className="pb-3">Status</th>
+                      <th className="pb-3 text-right">{text.action}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -301,6 +302,16 @@ export default function AlertsPage() {
                             label={item.status === "CRITICAL" ? text.critical : text.warning}
                             tone={item.status === "CRITICAL" ? "danger" : "warning"}
                           />
+                        </td>
+                        <td className="py-4 pr-6 text-right">
+                          <Link
+                            href={withQuery("/purchase-orders", {
+                              medicineId: item.id,
+                            })}
+                            className="inline-flex h-8 items-center rounded-lg border border-outline/15 bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-low"
+                          >
+                            {text.reorderNow}
+                          </Link>
                         </td>
                       </tr>
                     ))}
@@ -361,6 +372,18 @@ export default function AlertsPage() {
                         value={`ETB ${formatCurrency(item.quantityOnHand * item.sellingPrice, locale)}`}
                       />
                     </div>
+
+                    <div className="mt-4 flex justify-end">
+                      <Link
+                        href={withQuery("/medicines/disposals", {
+                          medicineId: item.medicineId,
+                          stockBatchId: item.id,
+                        })}
+                        className="inline-flex h-8 items-center rounded-lg border border-outline/15 bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:bg-surface"
+                      >
+                        {item.status === "EXPIRED" ? text.openDisposal : text.reviewBatch}
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -410,6 +433,26 @@ export default function AlertsPage() {
                       <span>{item.actor}</span>
                       <span>{formatDateTime(item.createdAt, locale)}</span>
                     </div>
+                    <div className="mt-3 flex justify-end">
+                      <Link
+                        href={
+                          item.type === "COUNT_SHORTAGE"
+                            ? withQuery("/medicines/counts", {
+                                medicineId: item.medicineId,
+                                stockBatchId: item.stockBatchId,
+                              })
+                            : withQuery("/medicines/adjustments", {
+                                medicineId: item.medicineId,
+                                stockBatchId: item.stockBatchId,
+                              })
+                        }
+                        className="inline-flex h-8 items-center rounded-lg border border-outline/15 bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:bg-surface"
+                      >
+                        {item.type === "COUNT_SHORTAGE"
+                          ? text.recountBatch
+                          : text.investigateLoss}
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -457,6 +500,14 @@ export default function AlertsPage() {
                           : `ETB ${formatCurrency(item.totalAmount, locale)}`}
                       </span>
                       <span>{formatDateTime(item.createdAt, locale)}</span>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <Link
+                        href={withQuery("/sales", { saleId: item.saleId })}
+                        className="inline-flex h-8 items-center rounded-lg border border-outline/15 bg-surface px-3 text-xs font-semibold text-on-surface transition-colors hover:bg-surface"
+                      >
+                        {text.openVoidedSale}
+                      </Link>
                     </div>
                   </div>
                 ))}
@@ -517,6 +568,22 @@ function InfoPair({ label, value }: { label: string; value: string }) {
       <p className="mt-1 text-sm font-semibold text-on-surface">{value}</p>
     </div>
   );
+}
+
+function withQuery(
+  path: string,
+  values: Record<string, string | null | undefined>
+) {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(values)) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
 }
 
 function formatExpiryLabel(
@@ -589,6 +656,13 @@ const ALERTS_COPY = {
     amountUnavailable: "Amount unavailable",
     noSaleReversals: "No sale reversals",
     noSaleReversalDescription: "Voided sales will appear here for supervisor review.",
+    action: "Action",
+    reorderNow: "Reorder",
+    openDisposal: "Record disposal",
+    reviewBatch: "Review batch",
+    recountBatch: "Recount batch",
+    investigateLoss: "Investigate loss",
+    openVoidedSale: "Open voided sale",
   },
   am: {
     loadingAlerts: "የቅርንጫፍ ማንቂያዎች በመጫን ላይ…",
@@ -641,6 +715,13 @@ const ALERTS_COPY = {
     amountUnavailable: "መጠኑ አይገኝም",
     noSaleReversals: "የሽያጭ መመለሻ የለም",
     noSaleReversalDescription: "የተሰረዙ ሽያጮች ለአስተዳዳሪ ግምገማ እዚህ ይታያሉ።",
+    action: "እርምጃ",
+    reorderNow: "ዳግም እዘዝ",
+    openDisposal: "ማስወገጃ መዝግብ",
+    reviewBatch: "ባች ክትትል",
+    recountBatch: "ባች እንደገና ቆጥር",
+    investigateLoss: "ጉድለት መርምር",
+    openVoidedSale: "የተሰረዘ ሽያጭ ክፈት",
   },
   om: {
     loadingAlerts: "Akeekkachiisonni damee fe'amaa jiru…",
@@ -693,5 +774,12 @@ const ALERTS_COPY = {
     amountUnavailable: "Maallaqni hin argamu",
     noSaleReversals: "Deebiin gurgurtaa hin jiru",
     noSaleReversalDescription: "Gurgurtaan haqame sakatta'iinsaaf asitti mul'ata.",
+    action: "Tarkaanfii",
+    reorderNow: "Irra deebi'ii ajaji",
+    openDisposal: "Baasii galmeessi",
+    reviewBatch: "Baachii ilaali",
+    recountBatch: "Baachii irra deebi'ii lakkaa'i",
+    investigateLoss: "Badiinsa qoradhu",
+    openVoidedSale: "Gurgurtaa haqame bani",
   },
 } as const;

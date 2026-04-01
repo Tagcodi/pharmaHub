@@ -631,6 +631,7 @@ export class InventoryService {
           entityId: adjustment.id,
           metadata: {
             medicineId: batch.medicine.id,
+            stockBatchId: batch.id,
             medicineName: batch.medicine.name,
             batchNumber: batch.batchNumber,
             reason: dto.reason,
@@ -757,6 +758,7 @@ export class InventoryService {
           metadata: {
             source: "disposal",
             medicineId: batch.medicine.id,
+            stockBatchId: batch.id,
             medicineName: batch.medicine.name,
             batchNumber: batch.batchNumber,
             supplierName: batch.supplierName,
@@ -881,6 +883,7 @@ export class InventoryService {
           metadata: {
             source: "cycle_count",
             medicineId: batch.medicine.id,
+            stockBatchId: batch.id,
             medicineName: batch.medicine.name,
             batchNumber: batch.batchNumber,
             previousQuantity,

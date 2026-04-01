@@ -38,6 +38,7 @@ export default function StockAdjustmentsPage() {
     null
   );
   const [requestedMedicineId, setRequestedMedicineId] = useState<string | null>(null);
+  const [requestedBatchId, setRequestedBatchId] = useState<string | null>(null);
   const [selectedMedicineId, setSelectedMedicineId] = useState("");
   const [selectedBatchId, setSelectedBatchId] = useState("");
   const [search, setSearch] = useState("");
@@ -56,6 +57,7 @@ export default function StockAdjustmentsPage() {
 
     const params = new URLSearchParams(window.location.search);
     setRequestedMedicineId(params.get("medicineId"));
+    setRequestedBatchId(params.get("stockBatchId"));
   }, []);
 
   useEffect(() => {
@@ -70,11 +72,18 @@ export default function StockAdjustmentsPage() {
       return;
     }
 
+    const requestedMedicineByBatch =
+      requestedBatchId
+        ? catalog.medicines.find((medicine) =>
+            medicine.batches.some((batch) => batch.id === requestedBatchId)
+          )?.id ?? null
+        : null;
     const defaultMedicineId =
-      requestedMedicineId &&
+      requestedMedicineByBatch ??
+      (requestedMedicineId &&
       catalog.medicines.some((medicine) => medicine.id === requestedMedicineId)
         ? requestedMedicineId
-        : selectedMedicineId || catalog.medicines[0]?.id || "";
+        : selectedMedicineId || catalog.medicines[0]?.id || "");
 
     if (defaultMedicineId !== selectedMedicineId) {
       setSelectedMedicineId(defaultMedicineId);
@@ -89,9 +98,20 @@ export default function StockAdjustmentsPage() {
     );
 
     if (!selectedBatchExists) {
-      setSelectedBatchId(selectedMedicine?.batches[0]?.id ?? "");
+      const requestedBatchExists =
+        requestedBatchId &&
+        selectedMedicine?.batches.some((batch) => batch.id === requestedBatchId);
+      setSelectedBatchId(
+        requestedBatchExists ? requestedBatchId! : selectedMedicine?.batches[0]?.id ?? ""
+      );
     }
-  }, [catalog, requestedMedicineId, selectedBatchId, selectedMedicineId]);
+  }, [
+    catalog,
+    requestedBatchId,
+    requestedMedicineId,
+    selectedBatchId,
+    selectedMedicineId,
+  ]);
 
   async function loadPage() {
     const token = getStoredToken();

@@ -147,6 +147,10 @@ export class AlertsService {
 
         const metadata = this.asAuditMetadata(log.metadata);
         const quantityDelta = this.toNumber(metadata.quantityDelta);
+        const medicineId =
+          typeof metadata.medicineId === "string" ? metadata.medicineId : null;
+        const stockBatchId =
+          typeof metadata.stockBatchId === "string" ? metadata.stockBatchId : null;
         const medicineName = String(
           metadata.medicineName ?? translateAlert(locale, "unknownMedicine")
         );
@@ -173,6 +177,8 @@ export class AlertsService {
             }),
             medicineName,
             batchNumber,
+            medicineId,
+            stockBatchId,
             quantityDelta,
             actor,
             createdAt: log.createdAt,
@@ -198,6 +204,8 @@ export class AlertsService {
             }),
             medicineName,
             batchNumber,
+            medicineId,
+            stockBatchId,
             quantityDelta,
             actor,
             createdAt: log.createdAt,
@@ -236,6 +244,7 @@ export class AlertsService {
                 : "",
           }),
           saleNumber: String(metadata.saleNumber ?? translateAlert(locale, "notAvailable")),
+          saleId: log.entityId ?? null,
           reason:
             typeof metadata.reason === "string" ? metadata.reason : null,
           totalAmount: this.toNullableNumber(metadata.totalAmount),

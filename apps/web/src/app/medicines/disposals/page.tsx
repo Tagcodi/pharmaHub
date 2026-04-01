@@ -38,6 +38,7 @@ export default function DisposalsPage() {
   const [catalog, setCatalog] = useState<DisposalCatalogResponse | null>(null);
   const [history, setHistory] = useState<InventoryDisposalsResponse | null>(null);
   const [requestedMedicineId, setRequestedMedicineId] = useState<string | null>(null);
+  const [requestedBatchId, setRequestedBatchId] = useState<string | null>(null);
   const [selectedBatchId, setSelectedBatchId] = useState("");
   const [search, setSearch] = useState("");
   const [quantity, setQuantity] = useState("1");
@@ -55,6 +56,7 @@ export default function DisposalsPage() {
 
     const params = new URLSearchParams(window.location.search);
     setRequestedMedicineId(params.get("medicineId"));
+    setRequestedBatchId(params.get("stockBatchId"));
   }, []);
 
   useEffect(() => {
@@ -68,13 +70,20 @@ export default function DisposalsPage() {
       return;
     }
 
+    const requestedBatch =
+      requestedBatchId
+        ? catalog.batches.find((batch) => batch.stockBatchId === requestedBatchId)
+        : null;
     const preferredBatch = requestedMedicineId
       ? catalog.batches.find((batch) => batch.medicineId === requestedMedicineId)
       : null;
 
     if (!selectedBatchId) {
       setSelectedBatchId(
-        preferredBatch?.stockBatchId ?? catalog.batches[0]?.stockBatchId ?? ""
+        requestedBatch?.stockBatchId ??
+          preferredBatch?.stockBatchId ??
+          catalog.batches[0]?.stockBatchId ??
+          ""
       );
       return;
     }
@@ -85,10 +94,13 @@ export default function DisposalsPage() {
 
     if (!stillExists) {
       setSelectedBatchId(
-        preferredBatch?.stockBatchId ?? catalog.batches[0]?.stockBatchId ?? ""
+        requestedBatch?.stockBatchId ??
+          preferredBatch?.stockBatchId ??
+          catalog.batches[0]?.stockBatchId ??
+          ""
       );
     }
-  }, [catalog, requestedMedicineId, selectedBatchId]);
+  }, [catalog, requestedBatchId, requestedMedicineId, selectedBatchId]);
 
   const selectedBatch =
     catalog?.batches.find((batch) => batch.stockBatchId === selectedBatchId) ?? null;
