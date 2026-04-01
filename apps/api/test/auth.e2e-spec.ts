@@ -3,6 +3,10 @@ import { createTestApp, requestJson } from "./support/test-context";
 
 async function main() {
   const context = await createTestApp();
+  const receivedAt = new Date();
+  receivedAt.setUTCSeconds(0, 0);
+  const expiryDate = new Date(receivedAt);
+  expiryDate.setUTCDate(expiryDate.getUTCDate() + 10);
 
   try {
     console.log("1. Verifying setup status before initial setup");
@@ -176,6 +180,7 @@ async function main() {
 
     console.log("9. Creating and listing medicines in the catalog");
     const createMedicineResponse = await requestJson<{
+      id: string;
       name: string;
       strength: string | null;
       form: string | null;
@@ -218,6 +223,117 @@ async function main() {
     assert.equal(listMedicinesResponse.body.length, 1);
     assert.equal(listMedicinesResponse.body[0]?.name, "Paracetamol");
     assert.equal(listMedicinesResponse.body[0]?.genericName, "Acetaminophen");
+
+    console.log("10. Receiving a live stock batch into inventory");
+    const stockInResponse = await requestJson<{
+      medicine: {
+        id: string;
+        name: string;
+      };
+      batch: {
+        batchNumber: string;
+        quantityOnHand: number;
+        sellingPrice: number;
+      };
+    }>(context.baseUrl, "/inventory/stock-in", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        medicineId: createMedicineResponse.body.id,
+        batchNumber: "B-2026-001",
+        receivedAt: receivedAt.toISOString(),
+        expiryDate: expiryDate.toISOString(),
+        quantity: 12,
+        costPrice: 10,
+        sellingPrice: 15,
+        supplierName: "EPSS",
+      }),
+    });
+
+    assert.equal(stockInResponse.status, 201);
+    assert.equal(stockInResponse.body.medicine.name, "Paracetamol");
+    assert.equal(stockInResponse.body.batch.batchNumber, "B-2026-001");
+    assert.equal(stockInResponse.body.batch.quantityOnHand, 12);
+    assert.equal(stockInResponse.body.batch.sellingPrice, 15);
+
+    console.log("11. Reading live inventory summaries");
+    const inventorySummaryResponse = await requestJson<{
+      totals: {
+        activeBatchCount: number;
+        registeredMedicineCount: number;
+        lowStockCount: number;
+        nearExpiryBatchCount: number;
+        totalUnitsOnHand: number;
+        totalStockValue: number;
+      };
+      medicines: Array<{
+        id: string;
+        latestBatchNumber: string | null;
+        totalQuantityOnHand: number;
+        isLowStock: boolean;
+        isExpiringSoon: boolean;
+      }>;
+    }>(context.baseUrl, "/inventory/summary", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(inventorySummaryResponse.status, 200);
+    assert.equal(inventorySummaryResponse.body.totals.activeBatchCount, 1);
+    assert.equal(inventorySummaryResponse.body.totals.registeredMedicineCount, 1);
+    assert.equal(inventorySummaryResponse.body.totals.lowStockCount, 1);
+    assert.equal(inventorySummaryResponse.body.totals.nearExpiryBatchCount, 1);
+    assert.equal(inventorySummaryResponse.body.totals.totalUnitsOnHand, 12);
+    assert.equal(inventorySummaryResponse.body.totals.totalStockValue, 180);
+    assert.equal(inventorySummaryResponse.body.medicines[0]?.latestBatchNumber, "B-2026-001");
+    assert.equal(inventorySummaryResponse.body.medicines[0]?.totalQuantityOnHand, 12);
+    assert.equal(inventorySummaryResponse.body.medicines[0]?.isLowStock, true);
+    assert.equal(inventorySummaryResponse.body.medicines[0]?.isExpiringSoon, true);
+
+    console.log("12. Reading live dashboard analytics");
+    const dashboardOverviewResponse = await requestJson<{
+      metrics: {
+        registeredMedicines: number;
+        activeBatches: number;
+        lowStockCount: number;
+        nearExpiryBatchCount: number;
+        criticalAlertCount: number;
+        totalUnitsOnHand: number;
+      };
+      expiryItems: Array<{
+        batchNumber: string;
+      }>;
+      weeklyInventoryValue: Array<{
+        value: number;
+      }>;
+      recentActivity: Array<{
+        title: string;
+      }>;
+    }>(context.baseUrl, "/dashboard/overview", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(dashboardOverviewResponse.status, 200);
+    assert.equal(dashboardOverviewResponse.body.metrics.registeredMedicines, 1);
+    assert.equal(dashboardOverviewResponse.body.metrics.activeBatches, 1);
+    assert.equal(dashboardOverviewResponse.body.metrics.lowStockCount, 1);
+    assert.equal(dashboardOverviewResponse.body.metrics.nearExpiryBatchCount, 1);
+    assert.equal(dashboardOverviewResponse.body.metrics.criticalAlertCount, 2);
+    assert.equal(dashboardOverviewResponse.body.metrics.totalUnitsOnHand, 12);
+    assert.equal(dashboardOverviewResponse.body.expiryItems[0]?.batchNumber, "B-2026-001");
+    assert.equal(
+      dashboardOverviewResponse.body.weeklyInventoryValue.reduce(
+        (sum, item) => sum + item.value,
+        0
+      ),
+      180
+    );
+    assert.ok(dashboardOverviewResponse.body.recentActivity.length >= 1);
 
     console.log("Auth foundation e2e checks passed.");
   } finally {
