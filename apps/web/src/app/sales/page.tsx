@@ -16,8 +16,10 @@ import {
   getStoredToken,
   type CreateSaleResponse,
   type SalesCatalogResponse,
+  type SalesReconciliationResponse,
   type SalesOverviewResponse,
   type SessionResponse,
+  type VoidSaleResponse,
 } from "../lib/api";
 
 const PAYMENT_METHODS = [
@@ -26,6 +28,8 @@ const PAYMENT_METHODS = [
   { value: "MOBILE_MONEY", label: "Mobile Money" },
   { value: "BANK_TRANSFER", label: "Bank Transfer" },
 ] as const;
+
+const RECONCILIATION_RANGES = [1, 7] as const;
 
 type CartItem = SalesCatalogResponse["medicines"][number] & {
   quantity: number;
@@ -36,14 +40,24 @@ export default function SalesPage() {
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [catalog, setCatalog] = useState<SalesCatalogResponse | null>(null);
   const [overview, setOverview] = useState<SalesOverviewResponse | null>(null);
+  const [reconciliation, setReconciliation] =
+    useState<SalesReconciliationResponse | null>(null);
+  const [reconciliationRange, setReconciliationRange] =
+    useState<(typeof RECONCILIATION_RANGES)[number]>(1);
   const [search, setSearch] = useState("");
   const [paymentMethod, setPaymentMethod] =
     useState<(typeof PAYMENT_METHODS)[number]["value"]>("CASH");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
+  const [voidReason, setVoidReason] = useState("Dispensing mistake");
+  const [voidNotes, setVoidNotes] = useState("");
   const [receipt, setReceipt] = useState<CreateSaleResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRefreshingReconciliation, setIsRefreshingReconciliation] = useState(false);
+  const [isVoiding, setIsVoiding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void loadPage();
@@ -63,18 +77,7 @@ export default function SalesPage() {
         headers: getAuthHeaders(token),
       });
       setSession(sessionData);
-
-      const [catalogData, overviewData] = await Promise.all([
-        fetchJson<SalesCatalogResponse>("/sales/catalog", {
-          headers: getAuthHeaders(token),
-        }),
-        fetchJson<SalesOverviewResponse>("/sales/overview", {
-          headers: getAuthHeaders(token),
-        }),
-      ]);
-
-      setCatalog(catalogData);
-      setOverview(overviewData);
+      await refreshWorkspace(token, reconciliationRange, sessionData.user.role);
     } catch (err) {
       const message = formatError(err);
 
@@ -87,6 +90,66 @@ export default function SalesPage() {
       setError(message);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function refreshWorkspace(
+    token: string,
+    rangeDays = reconciliationRange,
+    role = session?.user.role
+  ) {
+    const [catalogData, overviewData] = await Promise.all([
+      fetchJson<SalesCatalogResponse>("/sales/catalog", {
+        headers: getAuthHeaders(token),
+      }),
+      fetchJson<SalesOverviewResponse>("/sales/overview", {
+        headers: getAuthHeaders(token),
+      }),
+    ]);
+
+    setCatalog(catalogData);
+    setOverview(overviewData);
+
+    if (role !== "CASHIER") {
+      const reconciliationData = await fetchJson<SalesReconciliationResponse>(
+        `/sales/reconciliation?rangeDays=${rangeDays}`,
+        {
+          headers: getAuthHeaders(token),
+        }
+      );
+
+      setReconciliation(reconciliationData);
+      setReconciliationRange(rangeDays);
+    } else {
+      setReconciliation(null);
+    }
+  }
+
+  async function loadReconciliation(rangeDays: (typeof RECONCILIATION_RANGES)[number]) {
+    const token = getStoredToken();
+
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    setIsRefreshingReconciliation(true);
+
+    try {
+      const reconciliationData = await fetchJson<SalesReconciliationResponse>(
+        `/sales/reconciliation?rangeDays=${rangeDays}`,
+        {
+          headers: getAuthHeaders(token),
+        }
+      );
+
+      setReconciliation(reconciliationData);
+      setReconciliationRange(rangeDays);
+      setError(null);
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setIsRefreshingReconciliation(false);
     }
   }
 
@@ -139,6 +202,7 @@ export default function SalesPage() {
 
     setIsSubmitting(true);
     setError(null);
+    setSuccessMessage(null);
 
     try {
       const sale = await fetchJson<CreateSaleResponse>("/sales", {
@@ -155,22 +219,65 @@ export default function SalesPage() {
 
       setReceipt(sale);
       setCart([]);
-
-      const [catalogData, overviewData] = await Promise.all([
-        fetchJson<SalesCatalogResponse>("/sales/catalog", {
-          headers: getAuthHeaders(token),
-        }),
-        fetchJson<SalesOverviewResponse>("/sales/overview", {
-          headers: getAuthHeaders(token),
-        }),
-      ]);
-
-      setCatalog(catalogData);
-      setOverview(overviewData);
+      setSuccessMessage(
+        `Sale ${sale.saleNumber} completed for ETB ${formatCurrency(sale.totalAmount)}.`
+      );
+      await refreshWorkspace(token, reconciliationRange);
     } catch (err) {
       setError(formatError(err));
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleVoidSale() {
+    const token = getStoredToken();
+
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    if (!selectedSaleId) {
+      setError("Select a completed sale before voiding it.");
+      return;
+    }
+
+    if (!voidReason.trim()) {
+      setError("A void reason is required.");
+      return;
+    }
+
+    setIsVoiding(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const result = await fetchJson<VoidSaleResponse>(
+        `/sales/${selectedSaleId}/void`,
+        {
+          method: "PATCH",
+          headers: getAuthHeaders(token),
+          body: JSON.stringify({
+            reason: voidReason,
+            notes: voidNotes.trim() || undefined,
+          }),
+        }
+      );
+
+      setSelectedSaleId(null);
+      setVoidNotes("");
+      setSuccessMessage(
+        `Sale ${result.saleNumber} was voided and ${result.items.reduce(
+          (sum, item) => sum + item.quantity,
+          0
+        )} units were restored to stock.`
+      );
+      await refreshWorkspace(token, reconciliationRange);
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setIsVoiding(false);
     }
   }
 
@@ -203,6 +310,9 @@ export default function SalesPage() {
       subtotal,
     };
   }, [cart]);
+
+  const selectedSale =
+    overview?.recentSales.find((sale) => sale.id === selectedSaleId) ?? null;
 
   if (isLoading) {
     return <AppLoading message="Loading POS workspace…" />;
@@ -247,10 +357,9 @@ export default function SalesPage() {
           </div>
         ) : null}
 
-        {receipt ? (
+        {successMessage ? (
           <div className="mb-6 rounded-lg bg-secondary-container px-4 py-3 text-sm text-on-secondary-container">
-            Sale <strong>{receipt.saleNumber}</strong> completed for ETB{" "}
-            {formatCurrency(receipt.totalAmount)}.
+            {successMessage}
           </div>
         ) : null}
 
@@ -400,8 +509,12 @@ export default function SalesPage() {
                         <th className="pb-3">Sold By</th>
                         <th className="pb-3">Items</th>
                         <th className="pb-3">Payment</th>
+                        <th className="pb-3">Status</th>
                         <th className="pb-3 text-right">Total</th>
                         <th className="pb-3 text-right">Time</th>
+                        {session.user.role !== "CASHIER" ? (
+                          <th className="pb-3 text-right">Action</th>
+                        ) : null}
                       </tr>
                     </thead>
                     <tbody>
@@ -426,12 +539,44 @@ export default function SalesPage() {
                           <td className="py-3 pr-3 text-sm text-on-surface-variant">
                             {formatPaymentMethod(sale.paymentMethod)}
                           </td>
+                          <td className="py-3 pr-3">
+                            <StatusBadge
+                              label={
+                                sale.status === "VOIDED" ? "Voided" : "Completed"
+                              }
+                              tone={sale.status === "VOIDED" ? "warning" : "success"}
+                            />
+                          </td>
                           <td className="py-3 pr-3 text-right text-sm font-semibold text-on-surface">
                             ETB {formatCurrency(sale.totalAmount)}
                           </td>
                           <td className="py-3 text-right text-xs text-on-surface-variant">
-                            {formatRelativeTime(sale.soldAt)}
+                            {formatRelativeTime(
+                              sale.status === "VOIDED" && sale.voidedAt
+                                ? sale.voidedAt
+                                : sale.soldAt
+                            )}
                           </td>
+                          {session.user.role !== "CASHIER" ? (
+                            <td className="py-3 text-right">
+                              {sale.status === "COMPLETED" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedSaleId(sale.id);
+                                    setVoidReason("Dispensing mistake");
+                                  }}
+                                  className="rounded-full bg-error-container px-3 py-1.5 text-xs font-bold text-on-error-container transition-opacity hover:opacity-90"
+                                >
+                                  Void
+                                </button>
+                              ) : (
+                                <span className="text-xs text-on-surface-variant">
+                                  {sale.voidReason ?? "Reversed"}
+                                </span>
+                              )}
+                            </td>
+                          ) : null}
                         </tr>
                       ))}
                     </tbody>
@@ -568,6 +713,188 @@ export default function SalesPage() {
               </button>
             </SurfaceCard>
 
+            {session.user.role !== "CASHIER" ? (
+              <SurfaceCard className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-[1rem] font-bold text-on-surface">Sale Controls</h2>
+                    <p className="mt-1 text-sm text-on-surface-variant">
+                      Select a completed sale to reverse it safely with a reason.
+                    </p>
+                  </div>
+                  <StatusBadge
+                    label={selectedSale ? "Sale Selected" : "Awaiting Selection"}
+                    tone={selectedSale ? "warning" : "neutral"}
+                  />
+                </div>
+
+                {selectedSale ? (
+                  <div className="mt-5 space-y-4">
+                    <div className="rounded-lg bg-surface-low p-4">
+                      <p className="text-sm font-semibold text-on-surface">
+                        {selectedSale.saleNumber}
+                      </p>
+                      <p className="mt-1 text-xs text-on-surface-variant">
+                        {selectedSale.soldBy} • ETB {formatCurrency(selectedSale.totalAmount)} •{" "}
+                        {selectedSale.itemCount} units
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-[0.7rem] font-bold uppercase tracking-[0.06em] text-outline">
+                        Void Reason
+                      </label>
+                      <input
+                        value={voidReason}
+                        onChange={(event) => setVoidReason(event.target.value)}
+                        className="h-11 w-full rounded-lg bg-surface-lowest px-4 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        style={{
+                          boxShadow: "0 1px 4px rgba(0,66,83,0.06)",
+                          border: "1px solid rgba(0,66,83,0.10)",
+                        }}
+                        placeholder="Dispensing mistake"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-[0.7rem] font-bold uppercase tracking-[0.06em] text-outline">
+                        Notes
+                      </label>
+                      <textarea
+                        value={voidNotes}
+                        onChange={(event) => setVoidNotes(event.target.value)}
+                        rows={3}
+                        className="w-full rounded-lg bg-surface-lowest px-4 py-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        style={{
+                          boxShadow: "0 1px 4px rgba(0,66,83,0.06)",
+                          border: "1px solid rgba(0,66,83,0.10)",
+                        }}
+                        placeholder="Add optional context for the reversal."
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => void handleVoidSale()}
+                      disabled={isVoiding}
+                      className="flex h-11 w-full items-center justify-center rounded-lg bg-error-container text-sm font-bold text-on-error-container transition-opacity disabled:opacity-60"
+                    >
+                      {isVoiding ? "Voiding Sale…" : "Void Selected Sale"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-5">
+                    <EmptyStateCard
+                      compact
+                      title="No sale selected"
+                      description="Use the Void button in the recent sales table to choose a completed sale."
+                    />
+                  </div>
+                )}
+              </SurfaceCard>
+            ) : null}
+
+            {reconciliation ? (
+              <SurfaceCard className="p-6">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-[1rem] font-bold text-on-surface">Reconciliation</h2>
+                    <p className="mt-1 text-sm text-on-surface-variant">
+                      System movement summary for the current reporting window.
+                    </p>
+                  </div>
+
+                  <div className="flex rounded-full bg-surface-low p-1">
+                    {RECONCILIATION_RANGES.map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => void loadReconciliation(option)}
+                        disabled={isRefreshingReconciliation}
+                        className={[
+                          "rounded-full px-3 py-1.5 text-[0.68rem] font-bold uppercase tracking-[0.08em] transition-colors",
+                          reconciliationRange === option
+                            ? "bg-primary text-white"
+                            : "text-on-surface-variant hover:text-on-surface",
+                        ].join(" ")}
+                      >
+                        {option === 1 ? "Today" : `${option}d`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-5 space-y-3 rounded-lg bg-surface-low p-4">
+                  <SummaryRow
+                    label="Opening units"
+                    value={String(reconciliation.totals.openingUnitsOnHand)}
+                  />
+                  <SummaryRow
+                    label="Closing units"
+                    value={String(reconciliation.totals.closingUnitsOnHand)}
+                  />
+                  <SummaryRow
+                    label="Stock-in units"
+                    value={String(reconciliation.totals.stockInUnits)}
+                  />
+                  <SummaryRow
+                    label="Sold units"
+                    value={String(reconciliation.totals.saleUnits)}
+                  />
+                  <SummaryRow
+                    label="Void restorations"
+                    value={String(reconciliation.totals.voidRestorationUnits)}
+                  />
+                  <SummaryRow
+                    label="Adjustment net"
+                    value={formatSignedNumber(
+                      reconciliation.totals.adjustmentInUnits -
+                        reconciliation.totals.adjustmentOutUnits -
+                        reconciliation.totals.damageUnits -
+                        reconciliation.totals.expiredUnits -
+                        reconciliation.totals.supplierReturnUnits
+                    )}
+                  />
+                  <SummaryRow
+                    label="Voided sales"
+                    value={`${reconciliation.totals.voidedSalesCount} • ETB ${formatCurrency(
+                      reconciliation.totals.voidedSalesAmount
+                    )}`}
+                  />
+                  <SummaryRow
+                    label="Suspected loss"
+                    value={String(reconciliation.totals.suspectedLossCount)}
+                  />
+                </div>
+
+                {reconciliation.recentVoids.length ? (
+                  <div className="mt-5 space-y-3">
+                    <p className="text-[0.7rem] font-bold uppercase tracking-[0.08em] text-outline">
+                      Recent voids
+                    </p>
+                    {reconciliation.recentVoids.map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-lg border border-outline/10 bg-surface-low p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-on-surface">
+                              {item.saleNumber}
+                            </p>
+                            <p className="mt-1 text-xs text-on-surface-variant">
+                              {item.voidedBy} • {item.reason}
+                            </p>
+                          </div>
+                          <StatusBadge label="Voided" tone="warning" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </SurfaceCard>
+            ) : null}
+
             {receipt ? (
               <SurfaceCard className="p-6">
                 <h2 className="text-[1rem] font-bold text-on-surface">Last Receipt</h2>
@@ -691,4 +1018,8 @@ function formatDateTime(value: string) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function formatSignedNumber(value: number) {
+  return `${value > 0 ? "+" : ""}${value}`;
 }

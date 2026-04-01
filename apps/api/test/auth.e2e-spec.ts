@@ -421,6 +421,7 @@ async function main() {
 
     console.log("16. Completing a sale through the POS flow");
     const createSaleResponse = await requestJson<{
+      id: string;
       saleNumber: string;
       totalAmount: number;
       paymentMethod: string;
@@ -722,7 +723,134 @@ async function main() {
     assert.match(csvText, /Paracetamol/);
     assert.match(csvText, /THEFT_SUSPECTED/);
 
-    console.log("Reporting and export e2e checks passed.");
+    console.log("25. Voiding the completed sale");
+    const voidSaleResponse = await requestJson<{
+      saleNumber: string;
+      status: string;
+      totalAmount: number;
+      reason: string;
+      items: Array<{
+        quantity: number;
+      }>;
+    }>(context.baseUrl, `/sales/${createSaleResponse.body.id}/void`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        reason: "Dispensing mistake",
+        notes: "Wrong medicine picked at the counter",
+      }),
+    });
+
+    assert.equal(voidSaleResponse.status, 200);
+    assert.equal(voidSaleResponse.body.saleNumber, createSaleResponse.body.saleNumber);
+    assert.equal(voidSaleResponse.body.status, "VOIDED");
+    assert.equal(voidSaleResponse.body.totalAmount, 75);
+    assert.equal(voidSaleResponse.body.reason, "Dispensing mistake");
+    assert.equal(voidSaleResponse.body.items[0]?.quantity, 5);
+
+    console.log("26. Verifying stock is restored after the sale void");
+    const inventoryAfterVoidResponse = await requestJson<{
+      totals: {
+        totalUnitsOnHand: number;
+        totalStockValue: number;
+      };
+      medicines: Array<{
+        totalQuantityOnHand: number;
+      }>;
+    }>(context.baseUrl, "/inventory/summary", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(inventoryAfterVoidResponse.status, 200);
+    assert.equal(inventoryAfterVoidResponse.body.totals.totalUnitsOnHand, 10);
+    assert.equal(inventoryAfterVoidResponse.body.totals.totalStockValue, 150);
+    assert.equal(inventoryAfterVoidResponse.body.medicines[0]?.totalQuantityOnHand, 10);
+
+    console.log("27. Reading sales overview after the reversal");
+    const salesOverviewAfterVoidResponse = await requestJson<{
+      metrics: {
+        todaySalesAmount: number;
+        todaySalesCount: number;
+        averageTicket: number;
+      };
+      recentSales: Array<{
+        saleNumber: string;
+        status: string;
+        voidReason: string | null;
+      }>;
+    }>(context.baseUrl, "/sales/overview", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(salesOverviewAfterVoidResponse.status, 200);
+    assert.equal(salesOverviewAfterVoidResponse.body.metrics.todaySalesAmount, 0);
+    assert.equal(salesOverviewAfterVoidResponse.body.metrics.todaySalesCount, 0);
+    assert.equal(salesOverviewAfterVoidResponse.body.metrics.averageTicket, 0);
+    assert.equal(
+      salesOverviewAfterVoidResponse.body.recentSales[0]?.saleNumber,
+      createSaleResponse.body.saleNumber
+    );
+    assert.equal(salesOverviewAfterVoidResponse.body.recentSales[0]?.status, "VOIDED");
+    assert.equal(
+      salesOverviewAfterVoidResponse.body.recentSales[0]?.voidReason,
+      "Dispensing mistake"
+    );
+
+    console.log("28. Reading reconciliation after the reversal");
+    const reconciliationResponse = await requestJson<{
+      totals: {
+        openingUnitsOnHand: number;
+        closingUnitsOnHand: number;
+        movementNetUnits: number;
+        stockInUnits: number;
+        saleUnits: number;
+        voidRestorationUnits: number;
+        grossSalesCount: number;
+        completedSalesCount: number;
+        voidedSalesCount: number;
+        netSalesAmount: number;
+        voidedSalesAmount: number;
+        suspectedLossCount: number;
+      };
+      recentVoids: Array<{
+        saleNumber: string;
+        reason: string;
+      }>;
+    }>(context.baseUrl, "/sales/reconciliation?rangeDays=1", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(reconciliationResponse.status, 200);
+    assert.equal(reconciliationResponse.body.totals.openingUnitsOnHand, 0);
+    assert.equal(reconciliationResponse.body.totals.closingUnitsOnHand, 10);
+    assert.equal(reconciliationResponse.body.totals.movementNetUnits, 10);
+    assert.equal(reconciliationResponse.body.totals.stockInUnits, 12);
+    assert.equal(reconciliationResponse.body.totals.saleUnits, 5);
+    assert.equal(reconciliationResponse.body.totals.voidRestorationUnits, 5);
+    assert.equal(reconciliationResponse.body.totals.grossSalesCount, 1);
+    assert.equal(reconciliationResponse.body.totals.completedSalesCount, 0);
+    assert.equal(reconciliationResponse.body.totals.voidedSalesCount, 1);
+    assert.equal(reconciliationResponse.body.totals.netSalesAmount, 0);
+    assert.equal(reconciliationResponse.body.totals.voidedSalesAmount, 75);
+    assert.equal(reconciliationResponse.body.totals.suspectedLossCount, 1);
+    assert.equal(
+      reconciliationResponse.body.recentVoids[0]?.saleNumber,
+      createSaleResponse.body.saleNumber
+    );
+    assert.equal(
+      reconciliationResponse.body.recentVoids[0]?.reason,
+      "Dispensing mistake"
+    );
+
+    console.log("Sale voiding and reconciliation e2e checks passed.");
   } finally {
     await context.close();
   }

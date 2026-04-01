@@ -299,6 +299,9 @@ export type SalesOverviewResponse = {
     paymentMethod: "CASH" | "CARD" | "MOBILE_MONEY" | "BANK_TRANSFER";
     status: "COMPLETED" | "VOIDED";
     soldAt: string;
+    voidedAt: string | null;
+    voidReason: string | null;
+    voidedBy: string | null;
     soldBy: string;
     itemCount: number;
     items: Array<{
@@ -307,6 +310,78 @@ export type SalesOverviewResponse = {
       unitPrice: number;
       lineTotal: number;
     }>;
+  }>;
+};
+
+export type VoidSaleResponse = {
+  id: string;
+  saleNumber: string;
+  status: "VOIDED";
+  totalAmount: number;
+  paymentMethod: "CASH" | "CARD" | "MOBILE_MONEY" | "BANK_TRANSFER";
+  soldAt: string;
+  voidedAt: string;
+  reason: string;
+  notes: string | null;
+  items: Array<{
+    medicineName: string;
+    quantity: number;
+    batchNumber: string;
+    unitPrice: number;
+    lineTotal: number;
+  }>;
+};
+
+export type SalesReconciliationResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  range: {
+    days: number;
+    startDate: string;
+    endDate: string;
+  };
+  totals: {
+    openingUnitsOnHand: number;
+    closingUnitsOnHand: number;
+    movementNetUnits: number;
+    stockInUnits: number;
+    saleUnits: number;
+    voidRestorationUnits: number;
+    adjustmentInUnits: number;
+    adjustmentOutUnits: number;
+    damageUnits: number;
+    expiredUnits: number;
+    supplierReturnUnits: number;
+    grossSalesCount: number;
+    completedSalesCount: number;
+    voidedSalesCount: number;
+    grossSalesAmount: number;
+    netSalesAmount: number;
+    voidedSalesAmount: number;
+    suspectedLossCount: number;
+    adjustmentEventCount: number;
+  };
+  recentVoids: Array<{
+    id: string;
+    saleId: string | null;
+    saleNumber: string;
+    totalAmount: number;
+    itemCount: number;
+    reason: string;
+    notes: string | null;
+    voidedBy: string;
+    voidedAt: string;
+  }>;
+  recentAdjustments: Array<{
+    id: string;
+    medicineName: string;
+    reason: string;
+    quantityDelta: number;
+    createdBy: string;
+    createdAt: string;
   }>;
 };
 
