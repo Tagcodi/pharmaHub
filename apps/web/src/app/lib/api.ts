@@ -585,6 +585,27 @@ export type PrescriptionStatus =
   | "DISPENSED"
   | "CANCELLED";
 
+export type PrescriptionStockIssueCode =
+  | "MISSING_MEDICINE"
+  | "INSUFFICIENT_STOCK";
+
+export type PrescriptionStockReadinessLine = {
+  prescriptionItemId: string;
+  medicineId: string | null;
+  medicineName: string;
+  requestedQuantity: number;
+  availableQuantity: number;
+  shortageQuantity: number;
+  issueCode: PrescriptionStockIssueCode | null;
+};
+
+export type PrescriptionStockReadiness = {
+  canDispense: boolean;
+  issueCount: number;
+  totalShortageUnits: number;
+  lines: PrescriptionStockReadinessLine[];
+};
+
 export type PrescriptionCatalogResponse = {
   branch: {
     id: string;
@@ -627,6 +648,7 @@ export type PrescriptionRecord = {
   createdBy: string;
   itemCount: number;
   totalRequestedUnits: number;
+  stockReadiness: PrescriptionStockReadiness;
   sale: {
     id: string;
     saleNumber: string;

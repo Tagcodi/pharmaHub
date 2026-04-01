@@ -1626,6 +1626,15 @@ async function main() {
       };
       prescriptions: Array<{
         status: string;
+        stockReadiness: {
+          canDispense: boolean;
+          issueCount: number;
+          totalShortageUnits: number;
+          lines: Array<{
+            issueCode: string | null;
+            shortageQuantity: number;
+          }>;
+        };
       }>;
     }>(context.baseUrl, "/prescriptions", {
       headers: {
@@ -1637,6 +1646,18 @@ async function main() {
     assert.equal(prescriptionsAfterUpdateResponse.body.metrics.receivedCount, 0);
     assert.equal(prescriptionsAfterUpdateResponse.body.metrics.readyCount, 1);
     assert.equal(prescriptionsAfterUpdateResponse.body.prescriptions[0]?.status, "READY");
+    assert.equal(
+      prescriptionsAfterUpdateResponse.body.prescriptions[0]?.stockReadiness.canDispense,
+      true
+    );
+    assert.equal(
+      prescriptionsAfterUpdateResponse.body.prescriptions[0]?.stockReadiness.issueCount,
+      0
+    );
+    assert.equal(
+      prescriptionsAfterUpdateResponse.body.prescriptions[0]?.stockReadiness.totalShortageUnits,
+      0
+    );
 
     console.log("47. Dispensing the ready prescription into a live sale");
     const dispensePrescriptionResponse = await requestJson<{
@@ -1979,6 +2000,11 @@ async function main() {
       prescriptions: Array<{
         id: string;
         status: string;
+        stockReadiness: {
+          canDispense: boolean;
+          issueCount: number;
+          totalShortageUnits: number;
+        };
         sale: {
           saleNumber: string;
         } | null;
@@ -1996,6 +2022,14 @@ async function main() {
     assert.equal(
       prescriptionsAfterVoidResponse.body.prescriptions[0]?.status,
       "READY"
+    );
+    assert.equal(
+      prescriptionsAfterVoidResponse.body.prescriptions[0]?.stockReadiness.canDispense,
+      true
+    );
+    assert.equal(
+      prescriptionsAfterVoidResponse.body.prescriptions[0]?.stockReadiness.issueCount,
+      0
     );
     assert.equal(prescriptionsAfterVoidResponse.body.prescriptions[0]?.sale, null);
 
@@ -2030,6 +2064,106 @@ async function main() {
     assert.notEqual(
       redispensePrescriptionResponse.body.sale.saleNumber,
       dispensePrescriptionResponse.body.sale.saleNumber
+    );
+
+    console.log(
+      "55. Creating an over-requested ready prescription and checking stock readiness blocks dispense"
+    );
+    const createOverRequestedPrescriptionResponse = await requestJson<{
+      id: string;
+      prescriptionNumber: string;
+      status: string;
+    }>(context.baseUrl, "/prescriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        patientName: "Hana Tesfaye",
+        patientPhone: "+251922334455",
+        prescriberName: "Dr. Abiy",
+        items: [
+          {
+            medicineId: createMedicineResponse.body.id,
+            quantity: 30,
+            instructions: "Take once daily",
+          },
+        ],
+      }),
+    });
+
+    assert.equal(createOverRequestedPrescriptionResponse.status, 201);
+    assert.equal(createOverRequestedPrescriptionResponse.body.status, "RECEIVED");
+
+    const setOverRequestedReadyResponse = await requestJson<{
+      status: string;
+    }>(
+      context.baseUrl,
+      `/prescriptions/${createOverRequestedPrescriptionResponse.body.id}/status`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          status: "READY",
+        }),
+      }
+    );
+
+    assert.equal(setOverRequestedReadyResponse.status, 200);
+    assert.equal(setOverRequestedReadyResponse.body.status, "READY");
+
+    const queueWithOverRequestedResponse = await requestJson<{
+      prescriptions: Array<{
+        id: string;
+        status: string;
+        stockReadiness: {
+          canDispense: boolean;
+          issueCount: number;
+          totalShortageUnits: number;
+          lines: Array<{
+            medicineName: string;
+            requestedQuantity: number;
+            availableQuantity: number;
+            shortageQuantity: number;
+            issueCode: string | null;
+          }>;
+        };
+      }>;
+    }>(context.baseUrl, "/prescriptions", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(queueWithOverRequestedResponse.status, 200);
+
+    const overRequestedPrescription = queueWithOverRequestedResponse.body.prescriptions.find(
+      (prescription) =>
+        prescription.id === createOverRequestedPrescriptionResponse.body.id
+    );
+
+    assert.ok(overRequestedPrescription);
+    assert.equal(overRequestedPrescription?.status, "READY");
+    assert.equal(overRequestedPrescription?.stockReadiness.canDispense, false);
+    assert.equal(overRequestedPrescription?.stockReadiness.issueCount, 1);
+    assert.equal(overRequestedPrescription?.stockReadiness.totalShortageUnits, 8);
+    assert.equal(
+      overRequestedPrescription?.stockReadiness.lines[0]?.issueCode,
+      "INSUFFICIENT_STOCK"
+    );
+    assert.equal(
+      overRequestedPrescription?.stockReadiness.lines[0]?.requestedQuantity,
+      30
+    );
+    assert.equal(
+      overRequestedPrescription?.stockReadiness.lines[0]?.availableQuantity,
+      22
+    );
+    assert.equal(
+      overRequestedPrescription?.stockReadiness.lines[0]?.shortageQuantity,
+      8
     );
 
     console.log("Prescription queue e2e checks passed.");

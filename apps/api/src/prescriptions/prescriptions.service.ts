@@ -22,6 +22,8 @@ type PrescriptionStatusValue =
   | "DISPENSED"
   | "CANCELLED";
 
+type PrescriptionStockIssueCode = "MISSING_MEDICINE" | "INSUFFICIENT_STOCK";
+
 type PrescriptionWithDetails = {
   id: string;
   prescriptionNumber: string;
@@ -180,6 +182,15 @@ export class PrescriptionsService {
       orderBy: [{ receivedAt: "desc" }, { createdAt: "desc" }],
       take: 40,
     });
+    const stockOnHandByMedicineId = await this.getStockOnHandByMedicine(
+      currentUser.pharmacyId,
+      branch.id,
+      prescriptions.flatMap((prescription) =>
+        prescription.items
+          .map((item) => item.medicineId)
+          .filter((medicineId): medicineId is string => Boolean(medicineId))
+      )
+    );
 
     return {
       branch: {
@@ -210,7 +221,7 @@ export class PrescriptionsService {
         ).length,
       },
       prescriptions: prescriptions.map((prescription) =>
-        this.serializePrescription(prescription)
+        this.serializePrescription(prescription, stockOnHandByMedicineId)
       ),
     };
   }
@@ -355,8 +366,15 @@ export class PrescriptionsService {
 
       return prescription;
     });
+    const stockOnHandByMedicineId = await this.getStockOnHandByMedicine(
+      currentUser.pharmacyId,
+      branch.id,
+      result.items
+        .map((item) => item.medicineId)
+        .filter((medicineId): medicineId is string => Boolean(medicineId))
+    );
 
-    return this.serializePrescription(result);
+    return this.serializePrescription(result, stockOnHandByMedicineId);
   }
 
   async dispensePrescription(
@@ -533,9 +551,19 @@ export class PrescriptionsService {
         },
       };
     });
+    const stockOnHandByMedicineId = await this.getStockOnHandByMedicine(
+      currentUser.pharmacyId,
+      branch.id,
+      result.prescription.items
+        .map((item) => item.medicineId)
+        .filter((medicineId): medicineId is string => Boolean(medicineId))
+    );
 
     return {
-      prescription: this.serializePrescription(result.prescription),
+      prescription: this.serializePrescription(
+        result.prescription,
+        stockOnHandByMedicineId
+      ),
       sale: result.sale,
     };
   }
@@ -682,8 +710,15 @@ export class PrescriptionsService {
 
       return updatedPrescription;
     });
+    const stockOnHandByMedicineId = await this.getStockOnHandByMedicine(
+      currentUser.pharmacyId,
+      branch.id,
+      result.items
+        .map((item) => item.medicineId)
+        .filter((medicineId): medicineId is string => Boolean(medicineId))
+    );
 
-    return this.serializePrescription(result);
+    return this.serializePrescription(result, stockOnHandByMedicineId);
   }
 
   private async resolveBranch(currentUser: AuthenticatedUser) {
@@ -717,7 +752,15 @@ export class PrescriptionsService {
     return defaultBranch;
   }
 
-  private serializePrescription(prescription: PrescriptionWithDetails) {
+  private serializePrescription(
+    prescription: PrescriptionWithDetails,
+    stockOnHandByMedicineId?: Map<string, number>
+  ) {
+    const stockReadiness = this.buildStockReadiness(
+      prescription,
+      stockOnHandByMedicineId ?? new Map<string, number>()
+    );
+
     return {
       id: prescription.id,
       prescriptionNumber: prescription.prescriptionNumber,
@@ -737,6 +780,7 @@ export class PrescriptionsService {
         (sum, item) => sum + item.quantity,
         0
       ),
+      stockReadiness,
       sale: prescription.sale
         ? {
             id: prescription.sale.id,
@@ -763,6 +807,89 @@ export class PrescriptionsService {
             }
           : null,
       })),
+    };
+  }
+
+  private async getStockOnHandByMedicine(
+    pharmacyId: string,
+    branchId: string,
+    medicineIds: string[]
+  ) {
+    const uniqueMedicineIds = Array.from(new Set(medicineIds));
+
+    if (uniqueMedicineIds.length === 0) {
+      return new Map<string, number>();
+    }
+
+    const stockTotals = await this.prisma.stockBatch.groupBy({
+      by: ["medicineId"],
+      where: {
+        pharmacyId,
+        branchId,
+        medicineId: {
+          in: uniqueMedicineIds,
+        },
+        quantityOnHand: {
+          gt: 0,
+        },
+      },
+      _sum: {
+        quantityOnHand: true,
+      },
+    });
+
+    return new Map(
+      stockTotals.map((stockTotal) => [
+        stockTotal.medicineId,
+        stockTotal._sum.quantityOnHand ?? 0,
+      ])
+    );
+  }
+
+  private buildStockReadiness(
+    prescription: PrescriptionWithDetails,
+    stockOnHandByMedicineId: Map<string, number>
+  ) {
+    const remainingByMedicine = new Map(stockOnHandByMedicineId);
+    const lines = prescription.items.map((item) => {
+      if (!item.medicineId) {
+        return {
+          prescriptionItemId: item.id,
+          medicineId: null,
+          medicineName: item.medicineName,
+          requestedQuantity: item.quantity,
+          availableQuantity: 0,
+          shortageQuantity: item.quantity,
+          issueCode: "MISSING_MEDICINE" as PrescriptionStockIssueCode,
+        };
+      }
+
+      const availableQuantity = remainingByMedicine.get(item.medicineId) ?? 0;
+      const allocatedQuantity = Math.min(availableQuantity, item.quantity);
+      const shortageQuantity = item.quantity - allocatedQuantity;
+
+      remainingByMedicine.set(item.medicineId, availableQuantity - allocatedQuantity);
+
+      return {
+        prescriptionItemId: item.id,
+        medicineId: item.medicineId,
+        medicineName: item.medicineName,
+        requestedQuantity: item.quantity,
+        availableQuantity,
+        shortageQuantity,
+        issueCode:
+          shortageQuantity > 0
+            ? ("INSUFFICIENT_STOCK" as PrescriptionStockIssueCode)
+            : null,
+      };
+    });
+    const issueCount = lines.filter((line) => line.issueCode !== null).length;
+
+    return {
+      canDispense: issueCount === 0,
+      issueCount,
+      totalShortageUnits: lines.reduce((sum, line) => sum + line.shortageQuantity, 0),
+      lines,
     };
   }
 

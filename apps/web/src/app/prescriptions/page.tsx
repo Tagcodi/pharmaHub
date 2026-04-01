@@ -39,6 +39,9 @@ type DraftItem = {
   stock: number;
 };
 
+type PrescriptionStockReadinessLine =
+  PrescriptionRecord["stockReadiness"]["lines"][number];
+
 export default function PrescriptionsPage() {
   const router = useRouter();
   const { locale } = useI18n();
@@ -100,6 +103,17 @@ export default function PrescriptionsPage() {
   const isStatusLocked =
     selectedPrescription?.status === "DISPENSED" ||
     selectedPrescription?.status === "CANCELLED";
+  const selectedStockReadiness = selectedPrescription?.stockReadiness ?? null;
+  const selectedStockIssues =
+    selectedStockReadiness?.lines.filter((line) => line.issueCode !== null) ?? [];
+  const selectedStockLineByItemId = new Map(
+    (selectedStockReadiness?.lines ?? []).map((line) => [line.prescriptionItemId, line])
+  );
+  const isDispenseBlockedByStock =
+    Boolean(selectedPrescription) &&
+    selectedPrescription?.status === "READY" &&
+    !selectedPrescription?.sale &&
+    !(selectedStockReadiness?.canDispense ?? false);
 
   useEffect(() => {
     if (!selectedPrescription) {
@@ -360,6 +374,11 @@ export default function PrescriptionsPage() {
       return;
     }
 
+    if (!selectedPrescription.stockReadiness.canDispense) {
+      setError(text.dispenseBlockedError);
+      return;
+    }
+
     setIsDispensing(true);
     setError(null);
     setSuccessMessage(null);
@@ -550,6 +569,14 @@ export default function PrescriptionsPage() {
                                 label={getStatusLabel(prescription.status, text)}
                                 tone={getStatusTone(prescription.status)}
                               />
+                              {prescription.status === "READY" &&
+                              !prescription.sale &&
+                              !prescription.stockReadiness.canDispense ? (
+                                <StatusBadge
+                                  label={text.stockBlockedBadge}
+                                  tone="warning"
+                                />
+                              ) : null}
                             </div>
                             <p className="mt-1 text-sm text-on-surface">
                               {prescription.patientName}
@@ -798,20 +825,51 @@ export default function PrescriptionsPage() {
                     </div>
 
                     <div className="mt-4 space-y-2">
-                      {selectedPrescription.items.map((item) => (
-                        <div
-                          key={item.id}
-                          className="rounded-lg border border-outline/10 bg-surface-low px-3 py-2"
-                        >
-                          <p className="text-sm font-medium text-on-surface">
-                            {item.medicineName}
-                          </p>
-                          <p className="mt-1 text-xs text-on-surface-variant">
-                            {formatNumber(item.quantity, locale)} {item.medicine?.unit ?? text.units}
-                            {item.instructions ? ` • ${item.instructions}` : ""}
-                          </p>
-                        </div>
-                      ))}
+                      {selectedPrescription.items.map((item) => {
+                        const stockLine = selectedStockLineByItemId.get(item.id);
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="rounded-lg border border-outline/10 bg-surface-low px-3 py-2"
+                          >
+                            <p className="text-sm font-medium text-on-surface">
+                              {item.medicineName}
+                            </p>
+                            <p className="mt-1 text-xs text-on-surface-variant">
+                              {formatNumber(item.quantity, locale)} {item.medicine?.unit ?? text.units}
+                              {item.instructions ? ` • ${item.instructions}` : ""}
+                            </p>
+                            {stockLine ? (
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <StatusBadge
+                                  label={getStockLineLabel(stockLine, text)}
+                                  tone={getStockLineTone(stockLine)}
+                                />
+                                <p className="text-xs text-on-surface-variant">
+                                  {text.stockAvailabilityLabel
+                                    .replace(
+                                      "{available}",
+                                      formatNumber(stockLine.availableQuantity, locale)
+                                    )
+                                    .replace(
+                                      "{requested}",
+                                      formatNumber(stockLine.requestedQuantity, locale)
+                                    )}
+                                </p>
+                                {stockLine.shortageQuantity > 0 ? (
+                                  <p className="text-xs font-semibold text-error">
+                                    {text.stockShortageLabel.replace(
+                                      "{shortage}",
+                                      formatNumber(stockLine.shortageQuantity, locale)
+                                    )}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {selectedPrescription.sale ? (
@@ -908,6 +966,64 @@ export default function PrescriptionsPage() {
                         </p>
                       </div>
 
+                      <div className="mb-4 rounded-lg border border-outline/10 bg-surface px-3 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusBadge
+                            label={
+                              selectedStockReadiness?.canDispense
+                                ? text.stockStatusReady
+                                : text.stockStatusBlocked
+                            }
+                            tone={
+                              selectedStockReadiness?.canDispense ? "success" : "warning"
+                            }
+                          />
+                          <p className="text-xs text-on-surface-variant">
+                            {selectedStockReadiness?.canDispense
+                              ? text.stockReadinessReadyMessage
+                              : text.stockReadinessBlockedMessage.replace(
+                                  "{count}",
+                                  formatNumber(
+                                    selectedStockReadiness?.issueCount ?? 0,
+                                    locale
+                                  )
+                                )}
+                          </p>
+                        </div>
+
+                        {selectedStockIssues.length ? (
+                          <div className="mt-3 space-y-2">
+                            {selectedStockIssues.map((issue) => (
+                              <p
+                                key={issue.prescriptionItemId}
+                                className="text-xs text-on-surface-variant"
+                              >
+                                <span className="font-semibold text-on-surface">
+                                  {issue.medicineName}
+                                </span>{" "}
+                                {text.stockIssueDetail
+                                  .replace(
+                                    "{issue}",
+                                    formatStockIssue(issue.issueCode!, text)
+                                  )
+                                  .replace(
+                                    "{requested}",
+                                    formatNumber(issue.requestedQuantity, locale)
+                                  )
+                                  .replace(
+                                    "{available}",
+                                    formatNumber(issue.availableQuantity, locale)
+                                  )
+                                  .replace(
+                                    "{shortage}",
+                                    formatNumber(issue.shortageQuantity, locale)
+                                  )}
+                              </p>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+
                       <label className="block">
                         <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-outline">
                           {text.paymentMethodField}
@@ -932,12 +1048,17 @@ export default function PrescriptionsPage() {
                       <button
                         type="button"
                         onClick={handleDispensePrescription}
-                        disabled={isDispensing}
+                        disabled={isDispensing || isDispenseBlockedByStock}
                         className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-lg text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-70"
                         style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
                       >
                         {isDispensing ? text.dispensingButton : text.dispenseButton}
                       </button>
+                      {isDispenseBlockedByStock ? (
+                        <p className="mt-2 text-xs font-semibold text-error">
+                          {text.dispenseBlockedMessage}
+                        </p>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -1043,6 +1164,36 @@ function formatPaymentMethod(
   return text.paymentMethodCash;
 }
 
+function getStockLineTone(line: PrescriptionStockReadinessLine) {
+  return line.issueCode ? ("warning" as const) : ("success" as const);
+}
+
+function getStockLineLabel(
+  line: PrescriptionStockReadinessLine,
+  text: (typeof PRESCRIPTIONS_COPY)["en"]
+) {
+  if (line.issueCode === "MISSING_MEDICINE") {
+    return text.stockIssueMissing;
+  }
+
+  if (line.issueCode === "INSUFFICIENT_STOCK") {
+    return text.stockIssueInsufficient;
+  }
+
+  return text.stockIssueReady;
+}
+
+function formatStockIssue(
+  issueCode: Exclude<PrescriptionStockReadinessLine["issueCode"], null>,
+  text: (typeof PRESCRIPTIONS_COPY)["en"]
+) {
+  if (issueCode === "MISSING_MEDICINE") {
+    return text.stockIssueMissing;
+  }
+
+  return text.stockIssueInsufficient;
+}
+
 const PRESCRIPTIONS_COPY = {
   en: {
     loadingWorkspace: "Loading prescription queue…",
@@ -1114,8 +1265,24 @@ const PRESCRIPTIONS_COPY = {
     paymentMethodCard: "Card",
     paymentMethodMobileMoney: "Mobile Money",
     paymentMethodBankTransfer: "Bank Transfer",
+    stockBlockedBadge: "Stock issue",
+    stockIssueReady: "Stock ready",
+    stockIssueMissing: "Medicine missing",
+    stockIssueInsufficient: "Insufficient stock",
+    stockAvailabilityLabel: "Available {available} / Requested {requested}",
+    stockShortageLabel: "Short {shortage}",
+    stockStatusReady: "Ready to dispense",
+    stockStatusBlocked: "Resolve stock issues",
+    stockReadinessReadyMessage:
+      "All prescription lines have enough live stock for dispensing.",
+    stockReadinessBlockedMessage:
+      "{count} stock issue(s) must be resolved before dispensing.",
+    stockIssueDetail:
+      "{issue}: requested {requested}, available {available}, short {shortage}.",
     dispenseButton: "Dispense Prescription",
     dispensingButton: "Dispensing prescription…",
+    dispenseBlockedMessage:
+      "Dispensing is disabled until stock issues are resolved.",
     noSelectionTitle: "Select a prescription",
     noSelectionDescription:
       "Choose a prescription from the queue to review details and update its status.",
@@ -1130,6 +1297,8 @@ const PRESCRIPTIONS_COPY = {
     patientNameRequired: "Patient name is required before creating a prescription.",
     addAtLeastOneLineError: "Add at least one medicine line before creating a prescription.",
     selectPrescriptionError: "Select a prescription before updating its status.",
+    dispenseBlockedError:
+      "Stock issues must be resolved before dispensing this prescription.",
     prescriptionCreatedMessage:
       "Prescription {number} created for {patient}.",
     statusUpdatedMessage:
@@ -1207,8 +1376,24 @@ const PRESCRIPTIONS_COPY = {
     paymentMethodCard: "ካርድ",
     paymentMethodMobileMoney: "ሞባይል ገንዘብ",
     paymentMethodBankTransfer: "የባንክ ዝውውር",
+    stockBlockedBadge: "የእቃ ችግር",
+    stockIssueReady: "እቃ ዝግጁ ነው",
+    stockIssueMissing: "መድሃኒቱ አይገኝም",
+    stockIssueInsufficient: "እቃ አይበቃም",
+    stockAvailabilityLabel: "ያለው {available} / የተጠየቀው {requested}",
+    stockShortageLabel: "የጎደለ {shortage}",
+    stockStatusReady: "ለመስጠት ዝግጁ",
+    stockStatusBlocked: "የእቃ ችግሮችን ፍቱ",
+    stockReadinessReadyMessage:
+      "ሁሉም የትዕዛዝ መስመሮች ለመስጠት በቂ ቀጥታ እቃ አላቸው።",
+    stockReadinessBlockedMessage:
+      "ከመስጠት በፊት {count} የእቃ ችግር መፍታት ያስፈልጋል።",
+    stockIssueDetail:
+      "{issue}: የተጠየቀ {requested}, ያለ {available}, የጎደለ {shortage}።",
     dispenseButton: "ትዕዛዙን ስጥ",
     dispensingButton: "ትዕዛዙን በመስጠት ላይ…",
+    dispenseBlockedMessage:
+      "የእቃ ችግሮች እስኪፈቱ ድረስ መስጠት ተዘግቷል።",
     noSelectionTitle: "ትዕዛዝ ይምረጡ",
     noSelectionDescription:
       "ዝርዝሮችን ለማየት እና ሁኔታውን ለማዘመን ከወረፋው ትዕዛዝ ይምረጡ።",
@@ -1223,6 +1408,8 @@ const PRESCRIPTIONS_COPY = {
     patientNameRequired: "ትዕዛዝ ከመፍጠርዎ በፊት የታካሚ ስም ያስፈልጋል።",
     addAtLeastOneLineError: "ትዕዛዝ ከመፍጠርዎ በፊት ቢያንስ አንድ መስመር ያክሉ።",
     selectPrescriptionError: "ሁኔታ ከማዘመንዎ በፊት ትዕዛዝ ይምረጡ።",
+    dispenseBlockedError:
+      "ይህን ትዕዛዝ ከመስጠት በፊት የእቃ ችግሮችን ይፍቱ።",
     prescriptionCreatedMessage:
       "ትዕዛዝ {number} ለ {patient} ተፈጥሯል።",
     statusUpdatedMessage:
@@ -1300,8 +1487,24 @@ const PRESCRIPTIONS_COPY = {
     paymentMethodCard: "Kaardii",
     paymentMethodMobileMoney: "Mobile Money",
     paymentMethodBankTransfer: "Dabarsa Baankii",
+    stockBlockedBadge: "Rakkoo kuusaa",
+    stockIssueReady: "Kuusaan qophaa'eera",
+    stockIssueMissing: "Qorichi hin jiru",
+    stockIssueInsufficient: "Kuusaan hin ga'u",
+    stockAvailabilityLabel: "Jiru {available} / Gaafatame {requested}",
+    stockShortageLabel: "Hafte {shortage}",
+    stockStatusReady: "Kenniinsaaf qophaa'e",
+    stockStatusBlocked: "Rakkoo kuusaa furi",
+    stockReadinessReadyMessage:
+      "Sararonni ajaja hundaaf kuusaan jiraataan gahaan ni jira.",
+    stockReadinessBlockedMessage:
+      "Kennuu dura rakkoowwan kuusaa {count} furamuu qabu.",
+    stockIssueDetail:
+      "{issue}: gaafatame {requested}, jiru {available}, hafte {shortage}.",
     dispenseButton: "Ajaja Kenni",
     dispensingButton: "Ajajni kennamaa jira…",
+    dispenseBlockedMessage:
+      "Rakkoowwan kuusaa hanga furamanitti kennuun cufameera.",
     noSelectionTitle: "Ajaja fili",
     noSelectionDescription:
       "Bal'ina isaa ilaaluuf fi haala isaa haaromsuuf ajaja tarree keessaa fili.",
@@ -1316,6 +1519,8 @@ const PRESCRIPTIONS_COPY = {
     patientNameRequired: "Ajaja uumuu dura maqaan dhukkubsataa barbaachisaadha.",
     addAtLeastOneLineError: "Ajaja uumuu dura yoo xiqqaate sarara tokko dabali.",
     selectPrescriptionError: "Haala haaromsuun dura ajaja fili.",
+    dispenseBlockedError:
+      "Ajaja kana kennuu dura rakkoowwan kuusaa furuun barbaachisaadha.",
     prescriptionCreatedMessage:
       "Ajajni {number} {patient}f uumameera.",
     statusUpdatedMessage:
