@@ -39,6 +39,7 @@ export default function UsersPage() {
   const [form, setForm] = useState(initialForm);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isTogglingUserId, setIsTogglingUserId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -135,6 +136,36 @@ export default function UsersPage() {
       setError(formatError(err));
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function updateUserStatus(user: PharmacyUser, isActive: boolean) {
+    const token = window.localStorage.getItem(TOKEN_KEY);
+
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    setIsTogglingUserId(user.id);
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      await fetchJson(`/users/${user.id}/status`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ isActive }),
+      });
+
+      setSuccessMsg(
+        `${user.fullName} was ${isActive ? "reactivated" : "deactivated"} successfully.`
+      );
+      await reloadUsers();
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setIsTogglingUserId(null);
     }
   }
 
@@ -259,6 +290,7 @@ export default function UsersPage() {
                       <th className="px-4 py-3 font-bold">Branch</th>
                       <th className="px-4 py-3 font-bold">Last login</th>
                       <th className="px-4 py-3 font-bold">Status</th>
+                      <th className="px-4 py-3 font-bold">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -293,6 +325,31 @@ export default function UsersPage() {
                         </td>
                         <td className="px-4 py-4 align-top">
                           <StatusChip isActive={user.isActive} />
+                        </td>
+                        <td className="px-4 py-4 align-top">
+                          {user.role !== "OWNER" ? (
+                            <button
+                              type="button"
+                              onClick={() => updateUserStatus(user, !user.isActive)}
+                              disabled={isTogglingUserId === user.id}
+                              className={[
+                                "rounded-full px-3 py-1.5 text-xs font-bold tracking-wide transition-colors disabled:opacity-60",
+                                user.isActive
+                                  ? "bg-error-container text-on-error-container hover:opacity-90"
+                                  : "bg-secondary-container text-on-secondary-container hover:opacity-90",
+                              ].join(" ")}
+                            >
+                              {isTogglingUserId === user.id
+                                ? "Saving…"
+                                : user.isActive
+                                  ? "Deactivate"
+                                  : "Reactivate"}
+                            </button>
+                          ) : (
+                            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-outline">
+                              Protected
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
