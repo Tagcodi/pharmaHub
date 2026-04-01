@@ -38,6 +38,8 @@ const ICONS = {
   reports: "M18 20V10M12 20V4M6 20v-6",
   purchaseOrders:
     "M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V9M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m1 8h-6M16 14h-6M10 18H8",
+  disposals:
+    "M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6",
   users:
     "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm14 10v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75",
   settings:
@@ -59,6 +61,7 @@ const PRIMARY_NAV = [
 
 const SECONDARY_NAV = [
   { href: "/purchase-orders", labelKey: "shell.nav.restocking", icon: "purchaseOrders" as const },
+  { href: "/medicines/disposals", labelKey: "shell.nav.disposals", icon: "disposals" as const },
   { href: "/audit", labelKey: "shell.nav.audit", icon: "audit" as const },
   { href: "/reports", labelKey: "shell.nav.reports", icon: "reports" as const },
   { href: "/users", labelKey: "shell.nav.users", icon: "users" as const },
@@ -158,6 +161,10 @@ export function AppShell({ session, children }: AppShellProps) {
     }
 
     if (item.href === "/purchase-orders") {
+      return role !== "CASHIER";
+    }
+
+    if (item.href === "/medicines/disposals") {
       return role !== "CASHIER";
     }
 

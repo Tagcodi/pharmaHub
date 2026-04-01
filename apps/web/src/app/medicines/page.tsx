@@ -188,6 +188,22 @@ export default function MedicinesPage() {
             </Link>
 
             <Link
+              href="/medicines/disposals"
+              className="flex h-11 items-center gap-2 rounded border border-outline/15 bg-surface-low px-5 text-sm font-bold text-on-surface transition-colors hover:bg-surface"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path
+                  d="M2 3.5h10M4.5 3.5V2h5v1.5M4 5.5l.5 6h5l.5-6M5.75 6.5v3M8.25 6.5v3"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              {text.returnsDisposals}
+            </Link>
+
+            <Link
               href="/medicines/counts"
               className="flex h-11 items-center gap-2 rounded border border-outline/15 bg-surface-low px-5 text-sm font-bold text-on-surface transition-colors hover:bg-surface"
             >
@@ -775,6 +791,7 @@ const MEDICINES_COPY = {
     inventoryDescription:
       "Track live stock by batch, expiry window, and retail value for {branch}.",
     restockOrders: "Restock Orders",
+    returnsDisposals: "Returns & Disposal",
     stockCount: "Stock Count",
     adjustStock: "Adjust Stock",
     receiveStock: "Receive Stock",
@@ -831,6 +848,7 @@ const MEDICINES_COPY = {
     inventoryDescription:
       "ለ {branch} ቀጥታ እቃን በባች፣ በማብቂያ መስኮት እና በመሸጫ ዋጋ ይከታተሉ።",
     restockOrders: "የእንደገና ማስገቢያ ትዕዛዞች",
+    returnsDisposals: "መመለሻ እና ማስወገጃ",
     stockCount: "የእቃ ቆጠራ",
     adjustStock: "እቃ አስተካክል",
     receiveStock: "እቃ ተቀበል",
@@ -887,6 +905,7 @@ const MEDICINES_COPY = {
     inventoryDescription:
       "Kuusaa yeroo ammaa baachiidhaan, yeroo xumuramuun, fi gatii gurgurtaatiin {branch}f hordofi.",
     restockOrders: "Ajajoota Deebisanii Guutuu",
+    returnsDisposals: "Deebii fi Balleessuu",
     stockCount: "Lakkoofsa Kuusaa",
     adjustStock: "Kuusaa Sirreessi",
     receiveStock: "Kuusaa Fudhadhu",
