@@ -384,6 +384,10 @@ export default function DashboardPage() {
                 {session.user.role !== "CASHIER" ? (
                   <>
                     <QuickActionLink href="/medicines/adjust" label="Receive Stock" />
+                    <QuickActionLink
+                      href="/medicines/adjustments"
+                      label="Adjust Stock"
+                    />
                     <QuickActionLink href="/medicines" label="Review Inventory" />
                   </>
                 ) : null}
@@ -429,6 +433,7 @@ function ActivityItem({
     success: "bg-secondary-container text-on-secondary-container",
     info: "bg-surface-low text-on-surface",
     neutral: "bg-surface-low text-on-surface-variant",
+    warning: "bg-tertiary-container text-on-tertiary-container",
     danger: "bg-error-container text-on-error-container",
   };
 

@@ -445,7 +445,140 @@ async function main() {
     assert.equal(salesOverviewResponse.body.recentSales[0]?.totalAmount, 75);
     assert.equal(salesOverviewResponse.body.recentSales[0]?.itemCount, 5);
 
-    console.log("Auth foundation e2e checks passed.");
+    console.log("17. Reading the stock adjustment catalog");
+    const adjustmentCatalogResponse = await requestJson<{
+      medicines: Array<{
+        id: string;
+        name: string;
+        batches: Array<{
+          id: string;
+          batchNumber: string;
+          quantityOnHand: number;
+        }>;
+      }>;
+    }>(context.baseUrl, "/inventory/adjustment-catalog", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(adjustmentCatalogResponse.status, 200);
+    assert.equal(adjustmentCatalogResponse.body.medicines.length, 1);
+    assert.equal(adjustmentCatalogResponse.body.medicines[0]?.name, "Paracetamol");
+    assert.equal(
+      adjustmentCatalogResponse.body.medicines[0]?.batches[0]?.quantityOnHand,
+      7
+    );
+
+    const adjustmentBatchId = adjustmentCatalogResponse.body.medicines[0]?.batches[0]?.id;
+    assert.ok(adjustmentBatchId);
+
+    console.log("18. Recording a theft-suspected stock adjustment");
+    const adjustStockResponse = await requestJson<{
+      reason: string;
+      quantityDelta: number;
+      quantityAfter: number;
+      batch: {
+        batchNumber: string;
+      };
+      medicine: {
+        name: string;
+      };
+    }>(context.baseUrl, "/inventory/adjustments", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        stockBatchId: adjustmentBatchId,
+        quantityDelta: -2,
+        reason: "THEFT_SUSPECTED",
+        notes: "Mismatch after shelf count",
+      }),
+    });
+
+    assert.equal(adjustStockResponse.status, 201);
+    assert.equal(adjustStockResponse.body.reason, "THEFT_SUSPECTED");
+    assert.equal(adjustStockResponse.body.quantityDelta, -2);
+    assert.equal(adjustStockResponse.body.quantityAfter, 5);
+    assert.equal(adjustStockResponse.body.batch.batchNumber, "B-2026-001");
+    assert.equal(adjustStockResponse.body.medicine.name, "Paracetamol");
+
+    console.log("19. Verifying inventory and adjustment history after the loss event");
+    const inventoryAfterAdjustmentResponse = await requestJson<{
+      totals: {
+        totalUnitsOnHand: number;
+        totalStockValue: number;
+      };
+      medicines: Array<{
+        totalQuantityOnHand: number;
+      }>;
+    }>(context.baseUrl, "/inventory/summary", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(inventoryAfterAdjustmentResponse.status, 200);
+    assert.equal(inventoryAfterAdjustmentResponse.body.totals.totalUnitsOnHand, 5);
+    assert.equal(inventoryAfterAdjustmentResponse.body.totals.totalStockValue, 75);
+    assert.equal(
+      inventoryAfterAdjustmentResponse.body.medicines[0]?.totalQuantityOnHand,
+      5
+    );
+
+    const adjustmentsResponse = await requestJson<{
+      metrics: {
+        totalAdjustments: number;
+        negativeAdjustments: number;
+        suspectedLossCount: number;
+        netUnitsDelta: number;
+      };
+      adjustments: Array<{
+        reason: string;
+        quantityDelta: number;
+        quantityAfter: number;
+      }>;
+    }>(context.baseUrl, "/inventory/adjustments", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(adjustmentsResponse.status, 200);
+    assert.equal(adjustmentsResponse.body.metrics.totalAdjustments, 1);
+    assert.equal(adjustmentsResponse.body.metrics.negativeAdjustments, 1);
+    assert.equal(adjustmentsResponse.body.metrics.suspectedLossCount, 1);
+    assert.equal(adjustmentsResponse.body.metrics.netUnitsDelta, -2);
+    assert.equal(adjustmentsResponse.body.adjustments[0]?.reason, "THEFT_SUSPECTED");
+    assert.equal(adjustmentsResponse.body.adjustments[0]?.quantityDelta, -2);
+    assert.equal(adjustmentsResponse.body.adjustments[0]?.quantityAfter, 5);
+
+    console.log("20. Reading the dedicated audit log feed");
+    const auditLogsResponse = await requestJson<{
+      metrics: {
+        totalEvents: number;
+        stockAdjustments: number;
+        suspectedLossEvents: number;
+      };
+      items: Array<{
+        title: string;
+        category: string;
+      }>;
+    }>(context.baseUrl, "/audit/logs", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(auditLogsResponse.status, 200);
+    assert.ok(auditLogsResponse.body.metrics.totalEvents >= 1);
+    assert.equal(auditLogsResponse.body.metrics.stockAdjustments, 1);
+    assert.equal(auditLogsResponse.body.metrics.suspectedLossEvents, 1);
+    assert.equal(auditLogsResponse.body.items[0]?.category, "Inventory");
+    assert.equal(auditLogsResponse.body.items[0]?.title, "Stock loss recorded");
+
+    console.log("Inventory adjustment and audit e2e checks passed.");
   } finally {
     await context.close();
   }

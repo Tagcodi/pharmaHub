@@ -151,6 +151,27 @@ type AppShellProps = {
 export function AppShell({ session, children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const role = session.user.role;
+
+  const primaryNav = PRIMARY_NAV.filter((item) => {
+    if (role === "CASHIER" && item.href === "/medicines") {
+      return false;
+    }
+
+    return true;
+  });
+
+  const secondaryNav = SECONDARY_NAV.filter((item) => {
+    if (item.href === "/users") {
+      return role === "OWNER";
+    }
+
+    if (item.href === "/audit") {
+      return role !== "CASHIER";
+    }
+
+    return true;
+  });
 
   const initials = session.user.fullName
     .split(" ")
@@ -203,7 +224,7 @@ export function AppShell({ session, children }: AppShellProps) {
         <nav className="px-2.5">
           <SectionLabel>Workspace</SectionLabel>
           <div className="space-y-0.5 mt-0.5">
-            {PRIMARY_NAV.map((item) => (
+            {primaryNav.map((item) => (
               <NavItem
                 key={item.href}
                 href={item.href}
@@ -222,7 +243,7 @@ export function AppShell({ session, children }: AppShellProps) {
         <nav className="px-2.5">
           <SectionLabel>Management</SectionLabel>
           <div className="space-y-0.5 mt-0.5">
-            {SECONDARY_NAV.map((item) => (
+            {secondaryNav.map((item) => (
               <NavItem
                 key={item.href}
                 href={item.href}

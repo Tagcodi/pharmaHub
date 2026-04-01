@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import {
+  AdjustmentReason,
   AuditAction,
   MovementType,
   Prisma,
@@ -11,6 +12,7 @@ import {
 } from "@prisma/client";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import { PrismaService } from "../prisma/prisma.service";
+import type { AdjustStockDto } from "./dto/adjust-stock.dto";
 import type { StockInDto } from "./dto/stock-in.dto";
 
 const LOW_STOCK_THRESHOLD = 20;
@@ -87,6 +89,264 @@ export class InventoryService {
         totalCostValue: this.roundCurrency(totals.totalCostValue),
       },
       medicines: summaries,
+    };
+  }
+
+  async getAdjustmentCatalog(currentUser: AuthenticatedUser) {
+    const branch = await this.resolveBranch(currentUser);
+    const medicines = await this.prisma.medicine.findMany({
+      where: {
+        pharmacyId: currentUser.pharmacyId,
+      },
+      include: {
+        stockBatches: {
+          where: {
+            branchId: branch.id,
+            quantityOnHand: {
+              gt: 0,
+            },
+          },
+          orderBy: [{ expiryDate: "asc" }, { receivedAt: "desc" }, { createdAt: "desc" }],
+        },
+      },
+      orderBy: [{ name: "asc" }, { createdAt: "asc" }],
+    });
+
+    return {
+      branch: {
+        id: branch.id,
+        name: branch.name,
+        code: branch.code,
+      },
+      medicines: medicines
+        .filter((medicine) => medicine.stockBatches.length > 0)
+        .map((medicine) => {
+          const summary = this.serializeMedicineSummary(medicine);
+
+          return {
+            id: medicine.id,
+            name: medicine.name,
+            genericName: medicine.genericName,
+            brandName: medicine.brandName,
+            form: medicine.form,
+            strength: medicine.strength,
+            category: medicine.category,
+            unit: medicine.unit,
+            totalQuantityOnHand: summary.totalQuantityOnHand,
+            activeBatchCount: summary.activeBatchCount,
+            isLowStock: summary.isLowStock,
+            batches: medicine.stockBatches.map((batch) =>
+              this.serializeAdjustmentBatch(batch)
+            ),
+          };
+        }),
+    };
+  }
+
+  async getAdjustments(currentUser: AuthenticatedUser) {
+    const branch = await this.resolveBranch(currentUser);
+    const adjustments = await this.prisma.inventoryAdjustment.findMany({
+      where: {
+        pharmacyId: currentUser.pharmacyId,
+        branchId: branch.id,
+      },
+      include: {
+        medicine: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        stockBatch: {
+          select: {
+            id: true,
+            batchNumber: true,
+            expiryDate: true,
+            quantityOnHand: true,
+          },
+        },
+        createdBy: {
+          select: {
+            fullName: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 40,
+    });
+
+    const movementSnapshots = await this.prisma.stockMovement.findMany({
+      where: {
+        pharmacyId: currentUser.pharmacyId,
+        referenceType: ReferenceType.INVENTORY_ADJUSTMENT,
+        referenceId: {
+          in: adjustments.map((adjustment) => adjustment.id),
+        },
+      },
+      select: {
+        referenceId: true,
+        quantityAfter: true,
+      },
+    });
+
+    const quantityAfterByAdjustment = new Map(
+      movementSnapshots.map((movement) => [movement.referenceId, movement.quantityAfter])
+    );
+
+    return {
+      branch: {
+        id: branch.id,
+        name: branch.name,
+        code: branch.code,
+      },
+      metrics: {
+        totalAdjustments: adjustments.length,
+        positiveAdjustments: adjustments.filter(
+          (adjustment) => adjustment.quantityDelta > 0
+        ).length,
+        negativeAdjustments: adjustments.filter(
+          (adjustment) => adjustment.quantityDelta < 0
+        ).length,
+        suspectedLossCount: adjustments.filter(
+          (adjustment) =>
+            adjustment.reason === AdjustmentReason.LOST ||
+            adjustment.reason === AdjustmentReason.THEFT_SUSPECTED
+        ).length,
+        netUnitsDelta: adjustments.reduce(
+          (sum, adjustment) => sum + adjustment.quantityDelta,
+          0
+        ),
+      },
+      adjustments: adjustments.map((adjustment) =>
+        this.serializeAdjustmentRecord(
+          adjustment,
+          quantityAfterByAdjustment.get(adjustment.id) ??
+            adjustment.stockBatch.quantityOnHand
+        )
+      ),
+    };
+  }
+
+  async adjustStock(currentUser: AuthenticatedUser, dto: AdjustStockDto) {
+    const branch = await this.resolveBranch(currentUser);
+    const notes = this.normalizeOptional(dto.notes);
+
+    if (dto.quantityDelta === 0) {
+      throw new BadRequestException("Adjustment quantity cannot be zero.");
+    }
+
+    this.validateAdjustmentDirection(dto.reason, dto.quantityDelta);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const batch = await tx.stockBatch.findFirst({
+        where: {
+          id: dto.stockBatchId,
+          pharmacyId: currentUser.pharmacyId,
+          branchId: branch.id,
+        },
+        include: {
+          medicine: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      if (!batch) {
+        throw new NotFoundException("Selected stock batch was not found.");
+      }
+
+      const quantityAfter = batch.quantityOnHand + dto.quantityDelta;
+
+      if (quantityAfter < 0) {
+        throw new BadRequestException(
+          `${batch.medicine.name} batch ${batch.batchNumber} only has ${batch.quantityOnHand} units available.`
+        );
+      }
+
+      const updatedBatch = await tx.stockBatch.update({
+        where: {
+          id: batch.id,
+        },
+        data: {
+          quantityOnHand: quantityAfter,
+        },
+      });
+
+      const adjustment = await tx.inventoryAdjustment.create({
+        data: {
+          pharmacyId: currentUser.pharmacyId,
+          branchId: branch.id,
+          medicineId: batch.medicineId,
+          stockBatchId: batch.id,
+          reason: dto.reason,
+          notes,
+          quantityDelta: dto.quantityDelta,
+          createdById: currentUser.userId,
+        },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          pharmacyId: currentUser.pharmacyId,
+          branchId: branch.id,
+          medicineId: batch.medicineId,
+          stockBatchId: batch.id,
+          movementType: this.mapAdjustmentMovementType(dto.reason, dto.quantityDelta),
+          referenceType: ReferenceType.INVENTORY_ADJUSTMENT,
+          referenceId: adjustment.id,
+          quantityDelta: dto.quantityDelta,
+          quantityAfter,
+          createdById: currentUser.userId,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          pharmacyId: currentUser.pharmacyId,
+          branchId: branch.id,
+          userId: currentUser.userId,
+          action: AuditAction.STOCK_ADJUSTED,
+          entityType: "InventoryAdjustment",
+          entityId: adjustment.id,
+          metadata: {
+            medicineId: batch.medicine.id,
+            medicineName: batch.medicine.name,
+            batchNumber: batch.batchNumber,
+            reason: dto.reason,
+            quantityDelta: dto.quantityDelta,
+            quantityAfter,
+            notes,
+          },
+        },
+      });
+
+      return {
+        adjustment,
+        batch: updatedBatch,
+        medicine: batch.medicine,
+      };
+    });
+
+    return {
+      id: result.adjustment.id,
+      reason: result.adjustment.reason,
+      notes: result.adjustment.notes,
+      quantityDelta: result.adjustment.quantityDelta,
+      quantityAfter: result.batch.quantityOnHand,
+      createdAt: result.adjustment.createdAt,
+      medicine: {
+        id: result.medicine.id,
+        name: result.medicine.name,
+      },
+      batch: {
+        id: result.batch.id,
+        batchNumber: result.batch.batchNumber,
+      },
     };
   }
 
@@ -439,6 +699,112 @@ export class InventoryService {
       isLowStock,
       isExpiringSoon,
     };
+  }
+
+  private serializeAdjustmentBatch(batch: {
+    id: string;
+    batchNumber: string;
+    expiryDate: Date;
+    quantityOnHand: number;
+    costPrice: Prisma.Decimal;
+    sellingPrice: Prisma.Decimal;
+    supplierName: string | null;
+    receivedAt: Date;
+  }) {
+    return {
+      id: batch.id,
+      batchNumber: batch.batchNumber,
+      expiryDate: batch.expiryDate,
+      quantityOnHand: batch.quantityOnHand,
+      costPrice: this.roundCurrency(this.toNumber(batch.costPrice)),
+      sellingPrice: this.roundCurrency(this.toNumber(batch.sellingPrice)),
+      supplierName: batch.supplierName,
+      receivedAt: batch.receivedAt,
+      isExpiringSoon: batch.expiryDate <= this.getNearExpiryCutoff(),
+    };
+  }
+
+  private serializeAdjustmentRecord(
+    adjustment: {
+      id: string;
+      reason: AdjustmentReason;
+      notes: string | null;
+      quantityDelta: number;
+      createdAt: Date;
+      medicine: {
+        id: string;
+        name: string;
+      };
+      stockBatch: {
+        id: string;
+        batchNumber: string;
+        expiryDate: Date;
+        quantityOnHand: number;
+      };
+      createdBy: {
+        fullName: string;
+      };
+    },
+    quantityAfter: number
+  ) {
+    return {
+      id: adjustment.id,
+      reason: adjustment.reason,
+      notes: adjustment.notes,
+      quantityDelta: adjustment.quantityDelta,
+      quantityAfter,
+      createdAt: adjustment.createdAt,
+      createdBy: adjustment.createdBy.fullName,
+      medicine: {
+        id: adjustment.medicine.id,
+        name: adjustment.medicine.name,
+      },
+      batch: {
+        id: adjustment.stockBatch.id,
+        batchNumber: adjustment.stockBatch.batchNumber,
+        expiryDate: adjustment.stockBatch.expiryDate,
+        currentQuantityOnHand: adjustment.stockBatch.quantityOnHand,
+      },
+    };
+  }
+
+  private validateAdjustmentDirection(
+    reason: AdjustmentReason,
+    quantityDelta: number
+  ) {
+    if (
+      quantityDelta > 0 &&
+      (reason === AdjustmentReason.DAMAGE ||
+        reason === AdjustmentReason.EXPIRED ||
+        reason === AdjustmentReason.RETURN_TO_SUPPLIER ||
+        reason === AdjustmentReason.LOST ||
+        reason === AdjustmentReason.THEFT_SUSPECTED)
+    ) {
+      throw new BadRequestException(
+        "The selected reason can only reduce stock."
+      );
+    }
+  }
+
+  private mapAdjustmentMovementType(
+    reason: AdjustmentReason,
+    quantityDelta: number
+  ) {
+    if (reason === AdjustmentReason.DAMAGE) {
+      return MovementType.DAMAGE;
+    }
+
+    if (reason === AdjustmentReason.EXPIRED) {
+      return MovementType.EXPIRED;
+    }
+
+    if (reason === AdjustmentReason.RETURN_TO_SUPPLIER) {
+      return MovementType.RETURN;
+    }
+
+    return quantityDelta > 0
+      ? MovementType.ADJUSTMENT_IN
+      : MovementType.ADJUSTMENT_OUT;
   }
 
   private getNearExpiryCutoff() {
