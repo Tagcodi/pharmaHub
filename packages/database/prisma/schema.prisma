@@ -31,6 +31,14 @@ enum PurchaseOrderStatus {
   CANCELLED
 }
 
+enum PrescriptionStatus {
+  RECEIVED
+  IN_REVIEW
+  READY
+  DISPENSED
+  CANCELLED
+}
+
 enum AdjustmentReason {
   DAMAGE
   EXPIRED
@@ -70,6 +78,8 @@ enum AuditAction {
   SALE_VOIDED
   PURCHASE_ORDER_CREATED
   PURCHASE_ORDER_RECEIVED
+  PRESCRIPTION_CREATED
+  PRESCRIPTION_STATUS_UPDATED
   LOGIN_SUCCESS
   LOGIN_FAILED
 }
@@ -89,6 +99,7 @@ model Pharmacy {
   medicines            Medicine[]
   stockBatches         StockBatch[]
   purchaseOrders       PurchaseOrder[]
+  prescriptions        Prescription[]
   sales                Sale[]
   inventoryAdjustments InventoryAdjustment[]
   stockMovements       StockMovement[]
@@ -111,6 +122,7 @@ model Branch {
   users                User[]
   stockBatches         StockBatch[]
   purchaseOrders       PurchaseOrder[]
+  prescriptions        Prescription[]
   sales                Sale[]
   inventoryAdjustments InventoryAdjustment[]
   stockMovements       StockMovement[]
@@ -137,6 +149,7 @@ model User {
   branch              Branch?               @relation(fields: [branchId], references: [id], onDelete: SetNull)
   createdBatches      StockBatch[]          @relation("StockBatchCreatedBy")
   createdPurchaseOrders PurchaseOrder[]     @relation("PurchaseOrderCreatedBy")
+  createdPrescriptions Prescription[]       @relation("PrescriptionCreatedBy")
   sales               Sale[]                @relation("SaleSoldBy")
   inventoryAdjustments InventoryAdjustment[]
   stockMovements      StockMovement[]
@@ -163,6 +176,7 @@ model Medicine {
   pharmacy             Pharmacy              @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
   stockBatches         StockBatch[]
   purchaseOrderItems   PurchaseOrderItem[]
+  prescriptionItems    PrescriptionItem[]
   saleItems            SaleItem[]
   inventoryAdjustments InventoryAdjustment[]
   stockMovements       StockMovement[]
@@ -238,6 +252,51 @@ model PurchaseOrderItem {
 
   @@index([purchaseOrderId])
   @@map("purchase_order_items")
+}
+
+model Prescription {
+  id                 String             @id @default(uuid())
+  pharmacyId         String
+  branchId           String
+  prescriptionNumber String
+  patientName        String
+  patientPhone       String?
+  prescriberName     String?
+  notes              String?
+  status             PrescriptionStatus @default(RECEIVED)
+  receivedAt         DateTime           @default(now())
+  promisedAt         DateTime?
+  preparedAt         DateTime?
+  dispensedAt        DateTime?
+  createdById        String
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  pharmacy   Pharmacy           @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  branch     Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  createdBy  User               @relation("PrescriptionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  items      PrescriptionItem[]
+
+  @@unique([branchId, prescriptionNumber])
+  @@index([branchId, status, receivedAt])
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id             String   @id @default(uuid())
+  prescriptionId String
+  medicineId     String?
+  medicineName   String
+  quantity       Int
+  instructions   String?
+  createdAt      DateTime @default(now())
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicine     Medicine?    @relation(fields: [medicineId], references: [id], onDelete: SetNull)
+
+  @@index([prescriptionId])
+  @@index([medicineId])
+  @@map("prescription_items")
 }
 
 model Sale {

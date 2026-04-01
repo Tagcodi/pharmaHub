@@ -193,6 +193,44 @@ export function serializeAuditItem(
         actor,
         createdAt: activity.createdAt,
       };
+    case "PRESCRIPTION_CREATED":
+      return {
+        id: activity.id,
+        action: activity.action,
+        category: "Sales",
+        title: translateAudit(locale, "prescriptionReceived.title"),
+        description: translateAudit(locale, "prescriptionReceived.description", {
+          actor,
+          prescriptionNumber:
+            metadata.prescriptionNumber ?? translateAudit(locale, "notAvailable"),
+          patientName: metadata.patientName ?? translateAudit(locale, "aPatient"),
+        }),
+        tone: "info",
+        actor,
+        createdAt: activity.createdAt,
+      };
+    case "PRESCRIPTION_STATUS_UPDATED":
+      return {
+        id: activity.id,
+        action: activity.action,
+        category: "Sales",
+        title: translateAudit(locale, "prescriptionStatusUpdated.title"),
+        description: translateAudit(locale, "prescriptionStatusUpdated.description", {
+          actor,
+          prescriptionNumber:
+            metadata.prescriptionNumber ?? translateAudit(locale, "notAvailable"),
+          patientName: metadata.patientName ?? translateAudit(locale, "aPatient"),
+          status: formatReason(metadata.status),
+        }),
+        tone:
+          metadata.status === "DISPENSED"
+            ? "success"
+            : metadata.status === "CANCELLED"
+              ? "warning"
+              : "info",
+        actor,
+        createdAt: activity.createdAt,
+      };
     case AuditAction.LOGIN_SUCCESS:
       return {
         id: activity.id,
@@ -266,6 +304,7 @@ const AUDIT_MESSAGES: Record<AppLocale, Record<string, string>> = {
     notAvailable: "N/A",
     aMedicine: "a medicine",
     aNewMedicine: "a new medicine",
+    aPatient: "a patient",
     aPurchaseOrder: "a purchase order",
     aSupplier: "a supplier",
     aUnit: "a",
@@ -295,6 +334,12 @@ const AUDIT_MESSAGES: Record<AppLocale, Record<string, string>> = {
     "purchaseOrderReceived.title": "Purchase order received",
     "purchaseOrderReceived.description":
       "{actor} received {totalReceivedQuantity} units for {orderNumber} from {supplierName}.",
+    "prescriptionReceived.title": "Prescription received",
+    "prescriptionReceived.description":
+      "{actor} logged prescription {prescriptionNumber} for {patientName}.",
+    "prescriptionStatusUpdated.title": "Prescription updated",
+    "prescriptionStatusUpdated.description":
+      "{actor} moved prescription {prescriptionNumber} for {patientName} to {status}.",
     "staffLogin.title": "Staff login",
     "staffLogin.description": "{actor} signed in successfully.",
     "failedLoginAttempt.title": "Failed login attempt",
@@ -308,6 +353,7 @@ const AUDIT_MESSAGES: Record<AppLocale, Record<string, string>> = {
     notAvailable: "የለም",
     aMedicine: "አንድ መድሃኒት",
     aNewMedicine: "አዲስ መድሃኒት",
+    aPatient: "ታካሚ",
     aPurchaseOrder: "የግዥ ትዕዛዝ",
     aSupplier: "አቅራቢ",
     aUnit: "አንድ",
@@ -337,6 +383,12 @@ const AUDIT_MESSAGES: Record<AppLocale, Record<string, string>> = {
     "purchaseOrderReceived.title": "የግዥ ትዕዛዝ ተቀብሏል",
     "purchaseOrderReceived.description":
       "{actor} {totalReceivedQuantity} ዩኒቶችን ለ {orderNumber} ከ {supplierName} ተቀብሏል።",
+    "prescriptionReceived.title": "የሀኪም ትዕዛዝ ተቀብሏል",
+    "prescriptionReceived.description":
+      "{actor} ለ {patientName} ትዕዛዝ {prescriptionNumber} መዝግቧል።",
+    "prescriptionStatusUpdated.title": "የሀኪም ትዕዛዝ ተዘምኗል",
+    "prescriptionStatusUpdated.description":
+      "{actor} ለ {patientName} ትዕዛዝ {prescriptionNumber}ን ወደ {status} አንቀሳቅሷል።",
     "staffLogin.title": "የሰራተኛ መግቢያ",
     "staffLogin.description": "{actor} በተሳካ ሁኔታ ገብቷል።",
     "failedLoginAttempt.title": "ያልተሳካ የመግቢያ ሙከራ",
@@ -350,6 +402,7 @@ const AUDIT_MESSAGES: Record<AppLocale, Record<string, string>> = {
     notAvailable: "Hin jiru",
     aMedicine: "qoricha tokko",
     aNewMedicine: "qoricha haaraa",
+    aPatient: "dhukkubsataa",
     aPurchaseOrder: "ajaja bittaa",
     aSupplier: "dhiyeessaa",
     aUnit: "tokko",
@@ -379,6 +432,12 @@ const AUDIT_MESSAGES: Record<AppLocale, Record<string, string>> = {
     "purchaseOrderReceived.title": "Ajajni bittaa fudhatameera",
     "purchaseOrderReceived.description":
       "{actor} yuunitii {totalReceivedQuantity} {orderNumber}f {supplierName} irraa fudhateera.",
+    "prescriptionReceived.title": "Ajajni qorichaa galmaa'eera",
+    "prescriptionReceived.description":
+      "{actor} {patientName}f ajaja {prescriptionNumber} galmeesseera.",
+    "prescriptionStatusUpdated.title": "Haalli ajaja qorichaa jijjiirameera",
+    "prescriptionStatusUpdated.description":
+      "{actor} ajaja {prescriptionNumber} kan {patientName} gara {status}tti jijjiireera.",
     "staffLogin.title": "Seensa hojjetaa",
     "staffLogin.description": "{actor} milkaa'inaan seeneera.",
     "failedLoginAttempt.title": "Yaaliin seensaa kufe",

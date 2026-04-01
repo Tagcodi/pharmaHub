@@ -7,7 +7,7 @@ import { NestFactory } from "@nestjs/core";
 import type { INestApplication } from "@nestjs/common";
 import { AppModule } from "../../src/app.module";
 
-const repoRoot = resolve(process.cwd(), "../..");
+const repoRoot = resolve(__dirname, "../../../../..");
 const prismaBinary = resolve(repoRoot, "node_modules/.bin/prisma");
 
 loadEnv({

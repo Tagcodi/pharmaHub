@@ -571,6 +571,88 @@ export type PurchaseOrdersResponse = {
   orders: PurchaseOrderRecord[];
 };
 
+export type PrescriptionStatus =
+  | "RECEIVED"
+  | "IN_REVIEW"
+  | "READY"
+  | "DISPENSED"
+  | "CANCELLED";
+
+export type PrescriptionCatalogResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  metrics: {
+    totalMedicines: number;
+    stockedMedicines: number;
+    lowStockCount: number;
+  };
+  medicines: Array<{
+    id: string;
+    name: string;
+    genericName: string | null;
+    form: string | null;
+    strength: string | null;
+    unit: string | null;
+    totalQuantityOnHand: number;
+    activeBatchCount: number;
+    isLowStock: boolean;
+    nextExpiryDate: string | null;
+    currentSellingPrice: number | null;
+  }>;
+};
+
+export type PrescriptionRecord = {
+  id: string;
+  prescriptionNumber: string;
+  patientName: string;
+  patientPhone: string | null;
+  prescriberName: string | null;
+  notes: string | null;
+  status: PrescriptionStatus;
+  receivedAt: string;
+  promisedAt: string | null;
+  preparedAt: string | null;
+  dispensedAt: string | null;
+  createdAt: string;
+  createdBy: string;
+  itemCount: number;
+  totalRequestedUnits: number;
+  items: Array<{
+    id: string;
+    medicineId: string | null;
+    medicineName: string;
+    quantity: number;
+    instructions: string | null;
+    medicine: {
+      id: string;
+      genericName: string | null;
+      form: string | null;
+      strength: string | null;
+      unit: string | null;
+    } | null;
+  }>;
+};
+
+export type PrescriptionsQueueResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  metrics: {
+    totalPrescriptions: number;
+    activeQueueCount: number;
+    receivedCount: number;
+    inReviewCount: number;
+    readyCount: number;
+    dispensedTodayCount: number;
+  };
+  prescriptions: PrescriptionRecord[];
+};
+
 export type AuditLogsResponse = {
   branch: {
     id: string;
