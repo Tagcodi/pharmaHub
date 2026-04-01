@@ -7,132 +7,220 @@ import { AppShell } from "../../components/AppShell";
 import {
   fetchJson,
   formatError,
-  TOKEN_KEY,
+  getAuthHeaders,
+  getStoredToken,
+  type MedicineCatalogRecord,
   type SessionResponse,
+  type StockInResponse,
 } from "../../lib/api";
 
-const ADJUSTMENT_REASONS = [
-  "New Stock Entry",
-  "Damage",
-  "Expired",
-  "Count Correction",
-  "Return to Supplier",
-  "Lost",
-  "Theft Suspected",
-  "Other",
-];
-
-const UNIT_TYPES = [
-  "Box (10×10 Strips)",
-  "Box (30 Tablets)",
-  "Bottle (100ml)",
-  "Vial (10ml)",
-  "Ampoule (1ml)",
-  "Sachet",
-  "Strip (10 Tablets)",
-  "Tube (30g)",
-  "Unit",
-];
-
-const CATEGORIES = [
-  "Antibiotics",
-  "Analgesics",
-  "Antihypertensives",
-  "Antidiabetics",
-  "Cardiovascular",
-  "Dermatology",
-  "Gastrointestinal",
-  "Ophthalmology",
-  "Vitamins & Supplements",
-  "Other",
-];
-
 const initialForm = {
-  brandName: "",
+  medicineMode: "existing",
+  medicineId: "",
+  name: "",
   genericName: "",
-  unitType: "",
+  brandName: "",
+  form: "",
+  strength: "",
   category: "",
+  unit: "",
+  sku: "",
   supplierName: "",
-  invoiceRef: "",
   batchNumber: "",
-  manufactureDate: "",
+  receivedAt: getTodayInputValue(),
   expiryDate: "",
-  adjustmentReason: "New Stock Entry",
   quantity: "",
-  buyingPrice: "",
+  costPrice: "",
   sellingPrice: "",
 };
 
 export default function StockAdjustPage() {
   const router = useRouter();
   const [session, setSession] = useState<SessionResponse | null>(null);
+  const [catalog, setCatalog] = useState<MedicineCatalogRecord[]>([]);
+  const [requestedMedicineId, setRequestedMedicineId] = useState<string | null>(null);
   const [form, setForm] = useState(initialForm);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showAutoFill, setShowAutoFill] = useState(true);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadSession();
+    void loadPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadSession() {
-    const token = window.localStorage.getItem(TOKEN_KEY);
-    if (!token) { router.replace("/login"); return; }
-    try {
-      const data = await fetchJson<SessionResponse>("/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (data.user.role === "CASHIER") { router.replace("/dashboard"); return; }
-      setSession(data);
-    } catch (err) {
-      void formatError(err);
-      window.localStorage.removeItem(TOKEN_KEY);
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    setRequestedMedicineId(params.get("medicineId") ?? params.get("id"));
+  }, []);
+
+  useEffect(() => {
+    if (catalog.length === 0) {
+      setForm((current) => ({
+        ...current,
+        medicineMode: "new",
+        medicineId: "",
+      }));
+      return;
+    }
+
+    if (!requestedMedicineId) {
+      return;
+    }
+
+    const selected = catalog.find((medicine) => medicine.id === requestedMedicineId);
+
+    if (!selected) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      medicineMode: "existing",
+      medicineId: selected.id,
+    }));
+  }, [catalog, requestedMedicineId]);
+
+  async function loadPage() {
+    const token = getStoredToken();
+
+    if (!token) {
       router.replace("/login");
+      return;
+    }
+
+    try {
+      const sessionData = await fetchJson<SessionResponse>("/auth/me", {
+        headers: getAuthHeaders(token),
+      });
+
+      if (sessionData.user.role === "CASHIER") {
+        router.replace("/dashboard");
+        return;
+      }
+
+      setSession(sessionData);
+
+      const medicines = await fetchJson<MedicineCatalogRecord[]>("/medicines", {
+        headers: getAuthHeaders(token),
+      });
+
+      setCatalog(medicines);
+      if (medicines.length === 0) {
+        setForm((current) => ({
+          ...current,
+          medicineMode: "new",
+        }));
+      }
+    } catch (err) {
+      const message = formatError(err);
+
+      if (message.toLowerCase().includes("missing bearer token")) {
+        window.localStorage.removeItem("pharmahub.accessToken");
+        router.replace("/login");
+        return;
+      }
+
+      setError(message);
     } finally {
       setIsLoading(false);
     }
   }
 
-  function field(key: keyof typeof initialForm) {
-    return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-      setForm((prev) => ({ ...prev, [key]: e.target.value }));
+  function updateField<Key extends keyof typeof initialForm>(
+    key: Key,
+    value: (typeof initialForm)[Key]
+  ) {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
   }
 
-  const qty = parseFloat(form.quantity) || 0;
-  const buy = parseFloat(form.buyingPrice) || 0;
-  const sell = parseFloat(form.sellingPrice) || 0;
-  const totalCost = qty * buy;
-  const expectedRevenue = qty * sell;
+  const selectedMedicine =
+    form.medicineId && form.medicineMode === "existing"
+      ? catalog.find((medicine) => medicine.id === form.medicineId) ?? null
+      : null;
 
-  async function handleSave(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!form.brandName.trim()) { setError("Brand name is required."); return; }
+  const quantity = Number(form.quantity) || 0;
+  const costPrice = Number(form.costPrice) || 0;
+  const sellingPrice = Number(form.sellingPrice) || 0;
+  const totalCost = quantity * costPrice;
+  const expectedRevenue = quantity * sellingPrice;
 
-    const token = window.localStorage.getItem(TOKEN_KEY);
-    if (!token) { router.replace("/login"); return; }
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const token = getStoredToken();
+
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    if (form.medicineMode === "existing" && !form.medicineId) {
+      setError("Select a medicine before receiving stock.");
+      return;
+    }
+
+    if (form.medicineMode === "new" && !form.name.trim()) {
+      setError("Medicine name is required for a new catalog item.");
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
 
     try {
-      // Creates the medicine catalog entry; stock batch endpoint coming soon
-      await fetchJson("/medicines", {
+      const payload =
+        form.medicineMode === "existing"
+          ? {
+              medicineId: form.medicineId,
+              batchNumber: form.batchNumber,
+              supplierName: form.supplierName || undefined,
+              receivedAt: form.receivedAt,
+              expiryDate: form.expiryDate,
+              quantity: Number(form.quantity),
+              costPrice: Number(form.costPrice),
+              sellingPrice: Number(form.sellingPrice),
+            }
+          : {
+              name: form.name,
+              genericName: form.genericName || undefined,
+              brandName: form.brandName || undefined,
+              form: form.form || undefined,
+              strength: form.strength || undefined,
+              category: form.category || undefined,
+              unit: form.unit || undefined,
+              sku: form.sku || undefined,
+              batchNumber: form.batchNumber,
+              supplierName: form.supplierName || undefined,
+              receivedAt: form.receivedAt,
+              expiryDate: form.expiryDate,
+              quantity: Number(form.quantity),
+              costPrice: Number(form.costPrice),
+              sellingPrice: Number(form.sellingPrice),
+            };
+
+      const result = await fetchJson<StockInResponse>("/inventory/stock-in", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          name:        form.brandName,
-          genericName: form.genericName || undefined,
-          brandName:   form.brandName,
-          sku:         form.batchNumber || undefined,
-          category:    form.category   || undefined,
-          unit:        form.unitType   || undefined,
-        }),
+        headers: getAuthHeaders(token),
+        body: JSON.stringify(payload),
       });
-      setSuccessMsg("Medicine saved to catalog. Stock batch support coming soon.");
-      setTimeout(() => { setSuccessMsg(null); router.push("/medicines"); }, 2500);
+
+      setSuccessMsg(
+        `${result.medicine.name} batch ${result.batch.batchNumber} is now in inventory.`
+      );
+
+      setTimeout(() => {
+        setSuccessMsg(null);
+        router.push("/medicines");
+      }, 1800);
     } catch (err) {
       setError(formatError(err));
     } finally {
@@ -140,47 +228,71 @@ export default function StockAdjustPage() {
     }
   }
 
-  if (isLoading) return <LoadingScreen />;
-  if (!session) return null;
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (!session) {
+    return null;
+  }
 
   return (
     <AppShell session={session}>
-      <div className="px-8 py-8 max-w-[1200px] mx-auto w-full">
-
-        {/* ── Breadcrumb ─────────────────────────────────────────── */}
-        <nav className="flex items-center gap-2 text-xs text-on-surface-variant mb-5">
-          <Link href="/medicines" className="hover:text-on-surface transition-colors">
+      <div className="mx-auto w-full max-w-[1240px] px-8 py-8">
+        <nav className="mb-5 flex items-center gap-2 text-xs text-on-surface-variant">
+          <Link href="/medicines" className="transition-colors hover:text-on-surface">
             Inventory
           </Link>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <path
+              d="M4 2l4 4-4 4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
           </svg>
-          <span className="text-on-surface font-semibold">Adjust Stock</span>
+          <span className="font-semibold text-on-surface">Receive Stock</span>
         </nav>
 
-        {/* ── Page title + actions ────────────────────────────────── */}
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-[2rem] font-bold text-on-surface tracking-[-0.04em] leading-none">
-            Stock Adjustment{" "}
-            <span className="text-outline/40 font-light">/ Add New</span>
-          </h1>
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-[2rem] font-bold leading-none tracking-[-0.04em] text-on-surface">
+              Receive Stock
+            </h1>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              Add a new batch into{" "}
+              {session.branch?.name ?? "the default branch"} with real expiry,
+              pricing, and supplier details.
+            </p>
+          </div>
+
           <div className="flex items-center gap-3">
             <Link
               href="/medicines"
-              className="h-10 px-5 rounded flex items-center text-on-surface text-sm font-semibold hover:bg-surface-high transition-colors"
+              className="flex h-10 items-center rounded px-5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-high"
               style={{ border: "1px solid rgba(0,66,83,0.14)" }}
             >
-              Discard Changes
+              Cancel
             </Link>
             <button
-              form="adjust-form"
+              form="stock-in-form"
               type="submit"
               disabled={isSubmitting}
-              className="h-10 px-5 rounded flex items-center gap-2 text-white text-sm font-bold disabled:opacity-60 transition-opacity cursor-pointer"
+              className="flex h-10 cursor-pointer items-center gap-2 rounded px-5 text-sm font-bold text-white transition-opacity disabled:opacity-60"
               style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" strokeLinecap="round" />
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+              >
+                <path
+                  d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"
+                  strokeLinecap="round"
+                />
                 <polyline points="17 21 17 13 7 13 7 21" />
                 <polyline points="7 3 7 8 15 8" />
               </svg>
@@ -189,311 +301,388 @@ export default function StockAdjustPage() {
           </div>
         </div>
 
-        {/* ── Feedback ───────────────────────────────────────────── */}
-        {successMsg && (
-          <div className="mb-6 px-4 py-3 rounded-lg bg-secondary-container text-on-secondary-container text-sm">
+        {successMsg ? (
+          <div className="mb-6 rounded-lg bg-secondary-container px-4 py-3 text-sm text-on-secondary-container">
             {successMsg}
           </div>
-        )}
-        {error && (
-          <div className="mb-6 px-4 py-3 rounded-lg bg-error-container text-on-error-container text-sm">
+        ) : null}
+
+        {error ? (
+          <div className="mb-6 rounded-lg bg-error-container px-4 py-3 text-sm text-on-error-container">
             {error}
           </div>
-        )}
+        ) : null}
 
-        <form id="adjust-form" onSubmit={handleSave}>
-          <div className="grid lg:grid-cols-[1fr_340px] gap-5">
-
-            {/* ── Left column ──────────────────────────────────────── */}
+        <form id="stock-in-form" onSubmit={handleSave}>
+          <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
             <div className="space-y-5">
-
-              {/* Medicine Information */}
               <FormCard
                 icon={
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-primary">
-                    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0016.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 002 8.5c0 2.3 1.5 4.05 3 5.5l7 7 7-7z" strokeLinecap="round" strokeLinejoin="round" />
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    className="text-primary"
+                  >
+                    <path
+                      d="M12 5v14M5 12h14"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 }
-                title="Medicine Information"
+                title="Catalog Selection"
               >
-                <div className="grid grid-cols-2 gap-4">
-                  <AdjustField id="brandName" label="Brand Name" placeholder="Amoxicillin 500mg" required value={form.brandName} onChange={field("brandName")} />
-                  <AdjustField id="genericName" label="Generic Name" placeholder="Amoxicillin Trihydrate" value={form.genericName} onChange={field("genericName")} />
+                <div className="flex flex-wrap gap-2">
+                  <ModeButton
+                    active={form.medicineMode === "existing"}
+                    onClick={() =>
+                      updateField(
+                        "medicineMode",
+                        catalog.length > 0 ? "existing" : "new"
+                      )
+                    }
+                    disabled={catalog.length === 0}
+                    label="Existing Medicine"
+                    note={`${catalog.length} in catalog`}
+                  />
+                  <ModeButton
+                    active={form.medicineMode === "new"}
+                    onClick={() => updateField("medicineMode", "new")}
+                    label="New Catalog Item"
+                    note="Creates medicine + batch"
+                  />
                 </div>
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                  <AdjustSelect id="unitType" label="Unit Type" value={form.unitType} onChange={field("unitType")} options={UNIT_TYPES} placeholder="Select unit type" />
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <AdjustSelect id="category" label="Category" value={form.category} onChange={field("category")} options={CATEGORIES} placeholder="Select category" />
-                    </div>
-                    <button
-                      type="button"
-                      className="mt-[22px] w-9 h-11 rounded-lg flex items-center justify-center shrink-0 text-white cursor-pointer"
-                      style={{ background: "rgba(0,66,83,0.12)", color: "#004253" }}
-                      title="Add new category"
+
+                {form.medicineMode === "existing" ? (
+                  <div className="mt-5">
+                    <label
+                      htmlFor="medicineId"
+                      className="mb-1.5 block text-[0.7rem] font-bold uppercase tracking-[0.06em] text-outline"
                     >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                    </button>
+                      Select Medicine
+                    </label>
+                    <select
+                      id="medicineId"
+                      value={form.medicineId}
+                      onChange={(event) =>
+                        updateField("medicineId", event.target.value)
+                      }
+                      className="h-11 w-full rounded-lg bg-surface-lowest px-4 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      style={{
+                        boxShadow: "0 1px 4px rgba(0,66,83,0.06)",
+                        border: "1px solid rgba(0,66,83,0.10)",
+                      }}
+                    >
+                      <option value="">Choose a catalog medicine</option>
+                      {catalog.map((medicine) => (
+                        <option key={medicine.id} value={medicine.id}>
+                          {medicine.name}
+                          {medicine.strength ? ` • ${medicine.strength}` : ""}
+                          {medicine.form ? ` • ${medicine.form}` : ""}
+                        </option>
+                      ))}
+                    </select>
+
+                    {selectedMedicine ? (
+                      <div
+                        className="mt-4 rounded-lg bg-surface-low p-4"
+                        style={{ border: "1px solid rgba(0,66,83,0.08)" }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-on-surface">
+                              {selectedMedicine.name}
+                            </p>
+                            <p className="mt-1 text-xs text-on-surface-variant">
+                              {[
+                                selectedMedicine.genericName,
+                                selectedMedicine.form,
+                                selectedMedicine.strength,
+                              ]
+                                .filter(Boolean)
+                                .join(" • ") || "Catalog record"}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-secondary-container px-2.5 py-1 text-[0.65rem] font-bold text-on-secondary-container">
+                            Existing
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                </div>
+                ) : (
+                  <div className="mt-5 space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <AdjustField
+                        id="name"
+                        label="Medicine Name"
+                        placeholder="Amoxicillin"
+                        required
+                        value={form.name}
+                        onChange={(value) => updateField("name", value)}
+                      />
+                      <AdjustField
+                        id="brandName"
+                        label="Brand Name"
+                        placeholder="Amoxil"
+                        value={form.brandName}
+                        onChange={(value) => updateField("brandName", value)}
+                      />
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <AdjustField
+                        id="genericName"
+                        label="Generic Name"
+                        placeholder="Amoxicillin trihydrate"
+                        value={form.genericName}
+                        onChange={(value) => updateField("genericName", value)}
+                      />
+                      <AdjustField
+                        id="strength"
+                        label="Strength"
+                        placeholder="500 mg"
+                        value={form.strength}
+                        onChange={(value) => updateField("strength", value)}
+                      />
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <AdjustField
+                        id="form"
+                        label="Form"
+                        placeholder="Tablet"
+                        value={form.form}
+                        onChange={(value) => updateField("form", value)}
+                      />
+                      <AdjustField
+                        id="category"
+                        label="Category"
+                        placeholder="Antibiotic"
+                        value={form.category}
+                        onChange={(value) => updateField("category", value)}
+                      />
+                      <AdjustField
+                        id="unit"
+                        label="Unit"
+                        placeholder="Box"
+                        value={form.unit}
+                        onChange={(value) => updateField("unit", value)}
+                      />
+                      <AdjustField
+                        id="sku"
+                        label="SKU"
+                        placeholder="MED-001"
+                        value={form.sku}
+                        onChange={(value) => updateField("sku", value)}
+                      />
+                    </div>
+                  </div>
+                )}
               </FormCard>
 
-              {/* Batch Details */}
               <FormCard
                 icon={
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-on-tertiary-fixed-variant">
-                    <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" strokeLinecap="round" strokeLinejoin="round" />
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    className="text-on-tertiary-fixed-variant"
+                  >
+                    <path
+                      d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 }
                 title="Batch Details"
               >
-                <div className="grid grid-cols-3 gap-4">
-                  <AdjustField id="batchNumber" label="Batch Number" placeholder="BN-44291-X" value={form.batchNumber} onChange={field("batchNumber")} />
-                  <AdjustField id="manufactureDate" label="Manufacture Date" type="date" value={form.manufactureDate} onChange={field("manufactureDate")} />
-                  <AdjustField id="expiryDate" label="Expiry Date" type="date" value={form.expiryDate} onChange={field("expiryDate")} />
+                <div className="grid gap-4 md:grid-cols-3">
+                  <AdjustField
+                    id="batchNumber"
+                    label="Batch Number"
+                    placeholder="BN-44291-X"
+                    required
+                    value={form.batchNumber}
+                    onChange={(value) => updateField("batchNumber", value)}
+                  />
+                  <AdjustField
+                    id="receivedAt"
+                    label="Received Date"
+                    type="date"
+                    required
+                    value={form.receivedAt}
+                    onChange={(value) => updateField("receivedAt", value)}
+                  />
+                  <AdjustField
+                    id="expiryDate"
+                    label="Expiry Date"
+                    type="date"
+                    required
+                    value={form.expiryDate}
+                    onChange={(value) => updateField("expiryDate", value)}
+                  />
                 </div>
               </FormCard>
 
-              {/* Quantity & Financials */}
               <FormCard
                 icon={
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-outline">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    className="text-outline"
+                  >
                     <rect x="2" y="5" width="20" height="14" rx="2" />
                     <path d="M2 10h20" strokeLinecap="round" />
                   </svg>
                 }
-                title="Quantity & Financials"
+                title="Quantity & Pricing"
               >
-                <div className="grid grid-cols-3 gap-6">
-                  {/* Qty */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[0.7rem] font-bold tracking-[0.06em] uppercase text-outline">
-                      Quantity Received
-                    </label>
-                    <div className="relative">
-                      <input
-                        id="quantity"
-                        type="number"
-                        min="1"
-                        placeholder="0"
-                        value={form.quantity}
-                        onChange={field("quantity")}
-                        className="w-full h-14 px-4 rounded-lg bg-surface-lowest text-on-surface text-[1.8rem] font-bold
-                          tracking-[-0.04em] placeholder:text-outline/30 placeholder:text-[1.8rem] placeholder:font-bold
-                          focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow"
-                        style={{ boxShadow: "0 1px 4px rgba(0,66,83,0.06)" }}
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-outline text-xs font-semibold uppercase tracking-wide">
-                        Units
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Buy */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[0.7rem] font-bold tracking-[0.06em] uppercase text-outline">
-                      Unit Buying Price (ETB)
-                    </label>
-                    <input
-                      id="buyingPrice"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={form.buyingPrice}
-                      onChange={field("buyingPrice")}
-                      className="w-full h-14 px-4 rounded-lg bg-surface-lowest text-on-surface text-[1.8rem] font-bold
-                        tracking-[-0.04em] placeholder:text-outline/30 placeholder:text-[1.8rem] placeholder:font-bold
-                        focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow"
-                      style={{ boxShadow: "0 1px 4px rgba(0,66,83,0.06)" }}
-                    />
-                  </div>
-
-                  {/* Sell */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[0.7rem] font-bold tracking-[0.06em] uppercase text-outline">
-                      Unit Selling Price (ETB)
-                    </label>
-                    <input
-                      id="sellingPrice"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={form.sellingPrice}
-                      onChange={field("sellingPrice")}
-                      className="w-full h-14 px-4 rounded-lg bg-surface-lowest text-on-surface text-[1.8rem] font-bold
-                        tracking-[-0.04em] placeholder:text-outline/30 placeholder:text-[1.8rem] placeholder:font-bold
-                        focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow"
-                      style={{ boxShadow: "0 1px 4px rgba(0,66,83,0.06)" }}
-                    />
-                  </div>
+                <div className="grid gap-6 md:grid-cols-3">
+                  <MetricInput
+                    id="quantity"
+                    label="Quantity Received"
+                    suffix="Units"
+                    value={form.quantity}
+                    onChange={(value) => updateField("quantity", value)}
+                  />
+                  <MetricInput
+                    id="costPrice"
+                    label="Unit Cost (ETB)"
+                    value={form.costPrice}
+                    onChange={(value) => updateField("costPrice", value)}
+                  />
+                  <MetricInput
+                    id="sellingPrice"
+                    label="Selling Price (ETB)"
+                    value={form.sellingPrice}
+                    onChange={(value) => updateField("sellingPrice", value)}
+                  />
                 </div>
               </FormCard>
             </div>
 
-            {/* ── Right column ───────────────────────────────────── */}
             <div className="space-y-5">
-
-              {/* Supplier Info */}
               <FormCard
                 icon={
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-outline">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    className="text-outline"
+                  >
                     <rect x="1" y="3" width="15" height="13" rx="2" />
-                    <path d="M16 8h4l3 3v5h-7V8z" strokeLinecap="round" strokeLinejoin="round" />
+                    <path
+                      d="M16 8h4l3 3v5h-7V8z"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                     <circle cx="5.5" cy="18.5" r="2.5" />
                     <circle cx="18.5" cy="18.5" r="2.5" />
                   </svg>
                 }
-                title="Supplier Info"
+                title="Supplier & Branch"
               >
                 <div className="space-y-4">
-                  <AdjustField id="supplierName" label="Supplier Name" placeholder="Ethiopian Pharma Supply Service" value={form.supplierName} onChange={field("supplierName")} />
-                  <AdjustField id="invoiceRef" label="Invoice Reference" placeholder="REF-2023-001" value={form.invoiceRef} onChange={field("invoiceRef")} />
-
-                  {/* Upload */}
-                  <div>
-                    <label className="text-[0.7rem] font-bold tracking-[0.06em] uppercase text-outline block mb-1.5">
-                      Digital Invoice
-                    </label>
-                    <button
-                      type="button"
-                      className="w-full h-24 rounded-lg flex flex-col items-center justify-center gap-2 text-on-surface-variant text-xs font-semibold hover:bg-surface-high transition-colors cursor-pointer"
-                      style={{ border: "1.5px dashed rgba(0,66,83,0.20)" }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" strokeLinecap="round" />
-                        <polyline points="14 2 14 8 20 8" />
-                        <line x1="12" y1="18" x2="12" y2="12" strokeLinecap="round" />
-                        <polyline points="9 15 12 12 15 15" strokeLinecap="round" />
-                      </svg>
-                      Upload Digital Invoice
-                    </button>
-                  </div>
+                  <AdjustField
+                    id="supplierName"
+                    label="Supplier Name"
+                    placeholder="Ethiopian Pharma Supply Service"
+                    value={form.supplierName}
+                    onChange={(value) => updateField("supplierName", value)}
+                  />
+                  <SummaryLine
+                    label="Receiving branch"
+                    value={session.branch?.name ?? "Default branch"}
+                  />
+                  <SummaryLine
+                    label="Operator"
+                    value={session.user.fullName}
+                  />
+                  <SummaryLine
+                    label="Catalog records"
+                    value={String(catalog.length)}
+                  />
                 </div>
               </FormCard>
 
-              {/* Adjustment Logic */}
-              <FormCard
-                icon={
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-on-error-container">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="12" y1="8" x2="12" y2="12" strokeLinecap="round" />
-                    <line x1="12" y1="16" x2="12.01" y2="16" strokeLinecap="round" />
-                  </svg>
-                }
-                title="Adjustment Logic"
-              >
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[0.7rem] font-bold tracking-[0.06em] uppercase text-outline">
-                    Reason for Adjustment
-                  </label>
-                  <select
-                    id="adjustmentReason"
-                    value={form.adjustmentReason}
-                    onChange={field("adjustmentReason")}
-                    className="h-11 px-4 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow cursor-pointer"
-                    style={{
-                      background: "#fff7f3",
-                      color: "#6e3900",
-                      border: "1px solid rgba(110,57,0,0.20)",
-                      boxShadow: "0 1px 4px rgba(0,66,83,0.06)",
-                    }}
-                  >
-                    {ADJUSTMENT_REASONS.map((r) => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
-                </div>
-              </FormCard>
-
-              {/* Valuation Summary */}
               <div
-                className="rounded-lg p-6 text-white relative overflow-hidden"
+                className="relative overflow-hidden rounded-lg p-6 text-white"
                 style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
               >
-                <p className="text-[0.65rem] font-bold tracking-[0.1em] uppercase text-white/50 mb-4">
-                  Valuation Summary
+                <p className="mb-4 text-[0.65rem] font-bold uppercase tracking-[0.1em] text-white/55">
+                  Batch Valuation
                 </p>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-white/70 text-sm">Total Cost</span>
-                    <span className="text-white font-bold text-sm">
-                      {totalCost > 0 ? `${totalCost.toFixed(2)} ETB` : "—"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-white/70 text-sm">Expected Revenue</span>
-                    <span className="text-white font-bold text-base">
-                      {expectedRevenue > 0 ? `${expectedRevenue.toFixed(2)} ETB` : "—"}
-                    </span>
-                  </div>
-                  {totalCost > 0 && expectedRevenue > 0 && (
-                    <div
-                      className="flex items-center justify-between pt-3"
-                      style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}
-                    >
-                      <span className="text-white/70 text-xs">Margin</span>
-                      <span className="text-white text-xs font-bold">
-                        {(((expectedRevenue - totalCost) / expectedRevenue) * 100).toFixed(1)}%
-                      </span>
-                    </div>
-                  )}
+                  <SummaryLine
+                    inverse
+                    label="Total Cost"
+                    value={totalCost > 0 ? `${formatNumber(totalCost)} ETB` : "—"}
+                  />
+                  <SummaryLine
+                    inverse
+                    label="Expected Retail Value"
+                    value={
+                      expectedRevenue > 0
+                        ? `${formatNumber(expectedRevenue)} ETB`
+                        : "—"
+                    }
+                  />
+                  <SummaryLine
+                    inverse
+                    label="Projected Margin"
+                    value={
+                      totalCost > 0 && expectedRevenue > 0
+                        ? `${(((expectedRevenue - totalCost) / expectedRevenue) * 100).toFixed(1)}%`
+                        : "—"
+                    }
+                  />
                 </div>
 
-                <button
-                  type="button"
-                  className="w-full mt-6 h-10 rounded flex items-center justify-center gap-2 text-sm font-bold cursor-pointer transition-opacity hover:opacity-90"
-                  style={{ background: "rgba(255,255,255,0.12)", color: "white" }}
+                <div
+                  className="mt-5 rounded-lg bg-white/10 p-4"
+                  style={{ border: "1px solid rgba(255,255,255,0.08)" }}
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                    <rect x="3" y="3" width="7" height="7" rx="1" />
-                    <rect x="14" y="3" width="7" height="7" rx="1" />
-                    <rect x="3" y="14" width="7" height="7" rx="1" />
-                    <rect x="14" y="14" width="7" height="7" rx="1" />
-                  </svg>
-                  Preview Labels
-                </button>
+                  <p className="text-xs font-semibold text-white/70">
+                    Ready to receive
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-white">
+                    {selectedMedicine?.name || form.name || "New stock batch"}
+                  </p>
+                  <p className="mt-1 text-xs text-white/70">
+                    Batch {form.batchNumber || "—"} • Expiry {form.expiryDate || "—"}
+                  </p>
+                </div>
               </div>
 
-              {/* Auto-Fill toast */}
-              {showAutoFill && (
-                <div
-                  className="rounded-lg p-4 flex items-start gap-3"
-                  style={{
-                    background: "rgba(255,255,255,0.95)",
-                    border: "1px solid rgba(0,66,83,0.10)",
-                    boxShadow: "0 8px 24px rgba(0,66,83,0.10)",
-                  }}
-                >
-                  <div
-                    className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center"
-                    style={{ background: "rgba(110,57,0,0.10)" }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6e3900" strokeWidth="2">
-                      <path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8" strokeLinecap="round" />
-                      <path d="M21 3v5h-5" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M21 12a9 9 0 01-9 9 9.75 9.75 0 01-6.74-2.74L3 16" strokeLinecap="round" />
-                      <path d="M8 16H3v5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-on-surface text-xs font-bold">Auto-Fill Detected</p>
-                    <p className="text-on-surface-variant text-xs mt-0.5">
-                      Prices matched from last EPSS invoice (Oct 22).
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowAutoFill(false)}
-                    className="text-primary text-[0.65rem] font-bold tracking-wide uppercase shrink-0 cursor-pointer hover:underline"
-                  >
-                    Revert
-                  </button>
-                </div>
-              )}
+              <div
+                className="rounded-lg bg-surface-lowest p-5"
+                style={{ boxShadow: "0 4px 16px rgba(0,66,83,0.06)" }}
+              >
+                <p className="text-sm font-semibold text-on-surface">
+                  Stock-in rules
+                </p>
+                <ul className="mt-3 space-y-2 text-xs leading-relaxed text-on-surface-variant">
+                  <li>Batch numbers must be unique per medicine in the same branch.</li>
+                  <li>Expiry date must be after the received date.</li>
+                  <li>Each stock-in creates an audit log and inventory movement record.</li>
+                </ul>
+              </div>
             </div>
           </div>
         </form>
@@ -502,21 +691,21 @@ export default function StockAdjustPage() {
   );
 }
 
-/* ── Sub-components ─────────────────────────────────────────────────── */
-
 function LoadingScreen() {
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center">
+    <div className="flex min-h-screen items-center justify-center bg-surface">
       <div className="flex flex-col items-center gap-4">
-        <div className="w-10 h-10 rounded-full border-4 border-surface-high border-t-primary animate-spin-loader" />
-        <p className="text-on-surface-variant text-sm font-medium">Loading…</p>
+        <div className="h-10 w-10 animate-spin-loader rounded-full border-4 border-surface-high border-t-primary" />
+        <p className="text-sm font-medium text-on-surface-variant">Loading…</p>
       </div>
     </div>
   );
 }
 
 function FormCard({
-  icon, title, children,
+  icon,
+  title,
+  children,
 }: {
   icon: React.ReactNode;
   title: string;
@@ -524,12 +713,12 @@ function FormCard({
 }) {
   return (
     <div
-      className="bg-surface-lowest rounded-lg p-6"
+      className="rounded-lg bg-surface-lowest p-6"
       style={{ boxShadow: "0 4px 16px rgba(0,66,83,0.06)" }}
     >
-      <div className="flex items-center gap-2.5 mb-5">
+      <div className="mb-5 flex items-center gap-2.5">
         <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          className="flex h-8 w-8 items-center justify-center rounded-lg"
           style={{ background: "rgba(0,66,83,0.06)" }}
         >
           {icon}
@@ -541,8 +730,46 @@ function FormCard({
   );
 }
 
+function ModeButton({
+  active,
+  onClick,
+  label,
+  note,
+  disabled,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  note: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={[
+        "min-w-[170px] rounded-lg px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        active
+          ? "bg-primary/10 text-primary"
+          : "bg-surface-low text-on-surface-variant hover:bg-surface-high",
+      ].join(" ")}
+      style={active ? { border: "1px solid rgba(0,66,83,0.16)" } : undefined}
+    >
+      <p className="text-sm font-semibold">{label}</p>
+      <p className="mt-1 text-xs opacity-80">{note}</p>
+    </button>
+  );
+}
+
 function AdjustField({
-  id, label, type = "text", placeholder, required, value, onChange,
+  id,
+  label,
+  type = "text",
+  placeholder,
+  required,
+  value,
+  onChange,
 }: {
   id: string;
   label: string;
@@ -550,13 +777,16 @@ function AdjustField({
   placeholder?: string;
   required?: boolean;
   value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onChange: (value: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-[0.7rem] font-bold tracking-[0.06em] uppercase text-outline">
+      <label
+        htmlFor={id}
+        className="text-[0.7rem] font-bold uppercase tracking-[0.06em] text-outline"
+      >
         {label}
-        {required && <span className="text-on-error-container ml-0.5">*</span>}
+        {required ? <span className="ml-0.5 text-on-error-container">*</span> : null}
       </label>
       <input
         id={id}
@@ -564,42 +794,85 @@ function AdjustField({
         placeholder={placeholder}
         required={required}
         value={value}
-        onChange={onChange}
-        className="h-11 px-4 rounded-lg bg-surface-lowest text-on-surface text-sm
-          placeholder:text-outline/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow"
-        style={{ boxShadow: "0 1px 4px rgba(0,66,83,0.06)", border: "1px solid rgba(0,66,83,0.10)" }}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 rounded-lg bg-surface-lowest px-4 text-sm text-on-surface placeholder:text-outline/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+        style={{
+          boxShadow: "0 1px 4px rgba(0,66,83,0.06)",
+          border: "1px solid rgba(0,66,83,0.10)",
+        }}
       />
     </div>
   );
 }
 
-function AdjustSelect({
-  id, label, value, onChange, options, placeholder,
+function MetricInput({
+  id,
+  label,
+  suffix,
+  value,
+  onChange,
 }: {
   id: string;
   label: string;
+  suffix?: string;
   value: string;
-  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
-  options: string[];
-  placeholder: string;
+  onChange: (value: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-[0.7rem] font-bold tracking-[0.06em] uppercase text-outline">
+      <label className="text-[0.7rem] font-bold uppercase tracking-[0.06em] text-outline">
         {label}
       </label>
-      <select
-        id={id}
-        value={value}
-        onChange={onChange}
-        className="h-11 px-4 rounded-lg bg-surface-lowest text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow cursor-pointer"
-        style={{ boxShadow: "0 1px 4px rgba(0,66,83,0.06)", border: "1px solid rgba(0,66,83,0.10)" }}
-      >
-        <option value="">{placeholder}</option>
-        {options.map((o) => (
-          <option key={o} value={o}>{o}</option>
-        ))}
-      </select>
+      <div className="relative">
+        <input
+          id={id}
+          type="number"
+          step="0.01"
+          min="0"
+          placeholder="0.00"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-14 w-full rounded-lg bg-surface-lowest px-4 text-[1.8rem] font-bold tracking-[-0.04em] text-on-surface placeholder:text-[1.8rem] placeholder:font-bold placeholder:text-outline/30 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          style={{ boxShadow: "0 1px 4px rgba(0,66,83,0.06)" }}
+        />
+        {suffix ? (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold uppercase tracking-wide text-outline">
+            {suffix}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
+}
+
+function SummaryLine({
+  label,
+  value,
+  inverse,
+}: {
+  label: string;
+  value: string;
+  inverse?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className={inverse ? "text-sm text-white/70" : "text-sm text-on-surface-variant"}>
+        {label}
+      </span>
+      <span className={inverse ? "text-sm font-bold text-white" : "text-sm font-semibold text-on-surface"}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function formatNumber(value: number) {
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function getTodayInputValue() {
+  return new Date().toISOString().slice(0, 10);
 }
