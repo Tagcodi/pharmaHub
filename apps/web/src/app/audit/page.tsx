@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../components/AppShell";
 import { AppLoading } from "../components/ui/AppLoading";
 import { EmptyStateCard } from "../components/ui/EmptyStateCard";
+import { KpiCard } from "../components/ui/KpiCard";
+import { StatusBadge } from "../components/ui/StatusBadge";
 import { SurfaceCard } from "../components/ui/SurfaceCard";
 import {
   TOKEN_KEY,
@@ -12,14 +14,17 @@ import {
   formatError,
   getAuthHeaders,
   getStoredToken,
-  type DashboardOverviewResponse,
+  type AuditLogsResponse,
   type SessionResponse,
 } from "../lib/api";
+
+const FILTERS = ["All", "Inventory", "Sales", "Access", "Users", "Catalog"] as const;
 
 export default function AuditPage() {
   const router = useRouter();
   const [session, setSession] = useState<SessionResponse | null>(null);
-  const [overview, setOverview] = useState<DashboardOverviewResponse | null>(null);
+  const [logs, setLogs] = useState<AuditLogsResponse | null>(null);
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,17 +42,21 @@ export default function AuditPage() {
     }
 
     try {
-      const [sessionData, overviewData] = await Promise.all([
-        fetchJson<SessionResponse>("/auth/me", {
-          headers: getAuthHeaders(token),
-        }),
-        fetchJson<DashboardOverviewResponse>("/dashboard/overview", {
-          headers: getAuthHeaders(token),
-        }),
-      ]);
+      const sessionData = await fetchJson<SessionResponse>("/auth/me", {
+        headers: getAuthHeaders(token),
+      });
+
+      if (sessionData.user.role === "CASHIER") {
+        router.replace("/dashboard");
+        return;
+      }
+
+      const logsData = await fetchJson<AuditLogsResponse>("/audit/logs", {
+        headers: getAuthHeaders(token),
+      });
 
       setSession(sessionData);
-      setOverview(overviewData);
+      setLogs(logsData);
     } catch (err) {
       const message = formatError(err);
 
@@ -63,6 +72,16 @@ export default function AuditPage() {
     }
   }
 
+  const filteredItems = useMemo(() => {
+    const items = logs?.items ?? [];
+
+    if (filter === "All") {
+      return items;
+    }
+
+    return items.filter((item) => item.category === filter);
+  }, [filter, logs?.items]);
+
   if (isLoading) {
     return <AppLoading message="Loading audit feed…" />;
   }
@@ -71,9 +90,41 @@ export default function AuditPage() {
     return null;
   }
 
+  const metrics = logs?.metrics ?? {
+    totalEvents: 0,
+    stockAdjustments: 0,
+    suspectedLossEvents: 0,
+    failedLoginCount: 0,
+  };
+
   return (
     <AppShell session={session}>
-      <div className="mx-auto w-full max-w-[1100px] px-8 py-8">
+      <div className="mx-auto w-full max-w-[1240px] px-8 py-8">
+        <div className="mb-7 grid gap-5 lg:grid-cols-4">
+          <KpiCard
+            label="Audit Events"
+            value={String(metrics.totalEvents)}
+            note="Latest branch and system events"
+          />
+          <KpiCard
+            label="Stock Adjustments"
+            value={String(metrics.stockAdjustments)}
+            note="Manual inventory corrections"
+          />
+          <KpiCard
+            label="Suspected Loss"
+            value={String(metrics.suspectedLossEvents)}
+            valueColor="#93000a"
+            note="Loss or theft-suspected incidents"
+          />
+          <KpiCard
+            label="Failed Logins"
+            value={String(metrics.failedLoginCount)}
+            valueColor="#93000a"
+            note="Rejected sign-in attempts"
+          />
+        </div>
+
         {error ? (
           <div className="mb-6 rounded-lg bg-error-container px-4 py-3 text-sm text-on-error-container">
             {error}
@@ -81,57 +132,87 @@ export default function AuditPage() {
         ) : null}
 
         <SurfaceCard className="p-7">
-          <div className="mb-6">
-            <h1 className="text-[2rem] font-bold leading-none tracking-[-0.04em] text-on-surface">
-              Audit Log
-            </h1>
-            <p className="mt-2 text-sm text-on-surface-variant">
-              Live operational events pulled from the current audit-backed activity feed.
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-[2rem] font-bold leading-none tracking-[-0.04em] text-on-surface">
+                Audit Log
+              </h1>
+              <p className="mt-2 text-sm text-on-surface-variant">
+                Review access, inventory, sales, and staff events with branch-level accountability.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {FILTERS.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setFilter(item)}
+                  className={[
+                    "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                    filter === item
+                      ? "bg-primary/10 text-primary"
+                      : "bg-surface-low text-on-surface-variant hover:bg-surface",
+                  ].join(" ")}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {overview?.recentActivity.length ? (
-            <div className="space-y-4">
-              {overview.recentActivity.map((item) => (
+          {filteredItems.length ? (
+            <div className="mt-6 space-y-4">
+              {filteredItems.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-start gap-3 rounded-lg bg-surface-low p-4"
+                  className="rounded-xl border border-outline/10 bg-surface-low p-4"
                 >
-                  <div
-                    className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                      item.tone === "danger"
-                        ? "bg-error-container text-on-error-container"
-                        : item.tone === "success"
-                          ? "bg-secondary-container text-on-secondary-container"
-                          : "bg-surface text-on-surface-variant"
-                    }`}
-                  >
-                    <span className="text-[0.7rem] font-bold uppercase">
-                      {item.title.slice(0, 2)}
-                    </span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-4">
-                      <p className="text-sm font-semibold text-on-surface">
-                        {item.title}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-on-surface">
+                          {item.title}
+                        </p>
+                        <StatusBadge
+                          label={item.category}
+                          tone={
+                            item.tone === "danger"
+                              ? "danger"
+                              : item.tone === "warning"
+                                ? "warning"
+                                : item.tone === "success"
+                                  ? "success"
+                                  : "neutral"
+                          }
+                        />
+                      </div>
+
+                      <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
+                        {item.description}
                       </p>
-                      <span className="text-[0.65rem] uppercase tracking-wide text-outline">
-                        {formatRelativeTime(item.createdAt)}
-                      </span>
                     </div>
-                    <p className="mt-1 text-sm leading-relaxed text-on-surface-variant">
-                      {item.description}
-                    </p>
+
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-outline">
+                        {formatRelativeTime(item.createdAt)}
+                      </p>
+                      <p className="mt-2 text-xs text-on-surface-variant">
+                        {item.actor}
+                      </p>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <EmptyStateCard
-              compact
-              title="No audit activity yet"
-              description="As staff sign in, receive stock, and sell medicines, the live feed will appear here."
-            />
+            <div className="mt-6">
+              <EmptyStateCard
+                compact
+                title="No audit activity yet"
+                description="As staff sign in, sell stock, and record adjustments, the audit trail will appear here."
+              />
+            </div>
           )}
         </SurfaceCard>
       </div>

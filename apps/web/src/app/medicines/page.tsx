@@ -156,21 +156,38 @@ export default function MedicinesPage() {
             </p>
           </div>
 
-          <Link
-            href="/medicines/adjust"
-            className="flex h-11 shrink-0 items-center gap-2 rounded px-5 text-sm font-bold text-white"
-            style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path
-                d="M7 1v12M1 7h12"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-            Receive Stock
-          </Link>
+          <div className="flex shrink-0 items-center gap-3">
+            <Link
+              href="/medicines/adjustments"
+              className="flex h-11 items-center gap-2 rounded border border-outline/15 bg-surface-low px-5 text-sm font-bold text-on-surface transition-colors hover:bg-surface"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path
+                  d="M2 7h10"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+              Adjust Stock
+            </Link>
+
+            <Link
+              href="/medicines/adjust"
+              className="flex h-11 items-center gap-2 rounded px-5 text-sm font-bold text-white"
+              style={{ background: "linear-gradient(135deg, #004253, #005b71)" }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path
+                  d="M7 1v12M1 7h12"
+                  stroke="white"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+              Receive Stock
+            </Link>
+          </div>
         </div>
 
         <div className="mb-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -558,6 +575,23 @@ function MedicineRow({
                 strokeLinecap="round"
               >
                 <path d="M12 5v14M5 12h14" />
+              </svg>
+            </Link>
+            <Link
+              href={`/medicines/adjustments?medicineId=${medicine.id}`}
+              title="Adjust stock"
+              className="rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-low hover:text-on-surface"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <path d="M5 12h14" />
               </svg>
             </Link>
           </div>

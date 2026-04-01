@@ -132,9 +132,128 @@ export type DashboardOverviewResponse = {
   }>;
   recentActivity: Array<{
     id: string;
+    action: string;
+    category: string;
     title: string;
     description: string;
-    tone: "success" | "info" | "neutral" | "danger";
+    tone: "success" | "info" | "neutral" | "danger" | "warning";
+    actor: string;
+    createdAt: string;
+  }>;
+};
+
+export type AdjustmentReason =
+  | "DAMAGE"
+  | "EXPIRED"
+  | "COUNT_CORRECTION"
+  | "RETURN_TO_SUPPLIER"
+  | "LOST"
+  | "THEFT_SUSPECTED"
+  | "OTHER";
+
+export type AdjustmentCatalogResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  medicines: Array<{
+    id: string;
+    name: string;
+    genericName: string | null;
+    brandName: string | null;
+    form: string | null;
+    strength: string | null;
+    category: string | null;
+    unit: string | null;
+    totalQuantityOnHand: number;
+    activeBatchCount: number;
+    isLowStock: boolean;
+    batches: Array<{
+      id: string;
+      batchNumber: string;
+      expiryDate: string;
+      quantityOnHand: number;
+      costPrice: number;
+      sellingPrice: number;
+      supplierName: string | null;
+      receivedAt: string;
+      isExpiringSoon: boolean;
+    }>;
+  }>;
+};
+
+export type InventoryAdjustmentsResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  metrics: {
+    totalAdjustments: number;
+    positiveAdjustments: number;
+    negativeAdjustments: number;
+    suspectedLossCount: number;
+    netUnitsDelta: number;
+  };
+  adjustments: Array<{
+    id: string;
+    reason: AdjustmentReason;
+    notes: string | null;
+    quantityDelta: number;
+    quantityAfter: number;
+    createdAt: string;
+    createdBy: string;
+    medicine: {
+      id: string;
+      name: string;
+    };
+    batch: {
+      id: string;
+      batchNumber: string;
+      expiryDate: string;
+      currentQuantityOnHand: number;
+    };
+  }>;
+};
+
+export type CreateAdjustmentResponse = {
+  id: string;
+  reason: AdjustmentReason;
+  notes: string | null;
+  quantityDelta: number;
+  quantityAfter: number;
+  createdAt: string;
+  medicine: {
+    id: string;
+    name: string;
+  };
+  batch: {
+    id: string;
+    batchNumber: string;
+  };
+};
+
+export type AuditLogsResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  metrics: {
+    totalEvents: number;
+    stockAdjustments: number;
+    suspectedLossEvents: number;
+    failedLoginCount: number;
+  };
+  items: Array<{
+    id: string;
+    action: string;
+    category: "Inventory" | "Sales" | "Access" | "Users" | "Catalog";
+    title: string;
+    description: string;
+    tone: "success" | "info" | "neutral" | "danger" | "warning";
+    actor: string;
     createdAt: string;
   }>;
 };

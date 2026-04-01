@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { AuditAction, MovementType, Prisma } from "@prisma/client";
+import { MovementType, Prisma } from "@prisma/client";
+import { serializeAuditItem } from "../audit/audit.presenter";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -142,9 +143,7 @@ export class DashboardService {
       },
       weeklyInventoryValue: this.buildTrendSeries(trendMovements),
       expiryItems,
-      recentActivity: recentActivity.map((item) =>
-        this.serializeActivity(item)
-      ),
+      recentActivity: recentActivity.map((item) => serializeAuditItem(item)),
     };
   }
 
@@ -214,73 +213,6 @@ export class DashboardService {
     }));
   }
 
-  private serializeActivity(activity: {
-    id: string;
-    action: AuditAction;
-    entityType: string;
-    createdAt: Date;
-    metadata: Prisma.JsonValue | null;
-    user: { fullName: string } | null;
-  }) {
-    const metadata = this.asRecord(activity.metadata);
-    const actor = activity.user?.fullName ?? "System";
-
-    switch (activity.action) {
-      case AuditAction.STOCK_BATCH_CREATED:
-        return {
-          id: activity.id,
-          title: "Stock received",
-          description: `${actor} added ${
-            metadata.quantity ?? "new"
-          } units for ${metadata.medicineName ?? "a medicine"} batch ${
-            metadata.batchNumber ?? "N/A"
-          }.`,
-          tone: "success",
-          createdAt: activity.createdAt,
-        };
-      case AuditAction.MEDICINE_CREATED:
-        return {
-          id: activity.id,
-          title: "Medicine catalog updated",
-          description: `${actor} added ${metadata.name ?? "a new medicine"} to the catalog.`,
-          tone: "info",
-          createdAt: activity.createdAt,
-        };
-      case AuditAction.USER_CREATED:
-        return {
-          id: activity.id,
-          title: "Staff account added",
-          description: `${actor} created a new team account.`,
-          tone: "info",
-          createdAt: activity.createdAt,
-        };
-      case AuditAction.LOGIN_SUCCESS:
-        return {
-          id: activity.id,
-          title: "Staff login",
-          description: `${actor} signed in successfully.`,
-          tone: "neutral",
-          createdAt: activity.createdAt,
-        };
-      case AuditAction.LOGIN_FAILED:
-        return {
-          id: activity.id,
-          title: "Failed login attempt",
-          description: `A login attempt for ${actor} was rejected.`,
-          tone: "danger",
-          createdAt: activity.createdAt,
-        };
-      default:
-        return {
-          id: activity.id,
-          title: activity.action.replaceAll("_", " "),
-          description: `${actor} recorded a ${activity.entityType.toLowerCase()} event.`,
-          tone: "neutral",
-          createdAt: activity.createdAt,
-        };
-    }
-  }
-
   private getExpiryStatus(expiryDate: Date) {
     const diffInDays = Math.ceil(
       (expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
@@ -316,14 +248,6 @@ export class DashboardService {
     const month = `${value.getMonth() + 1}`.padStart(2, "0");
     const day = `${value.getDate()}`.padStart(2, "0");
     return `${year}-${month}-${day}`;
-  }
-
-  private asRecord(value: Prisma.JsonValue | null) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      return {};
-    }
-
-    return value as Record<string, string | number | boolean | null>;
   }
 
   private toNumber(value: Prisma.Decimal | number) {
