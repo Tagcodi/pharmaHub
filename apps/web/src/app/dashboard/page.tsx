@@ -388,6 +388,7 @@ export default function DashboardPage() {
                       href="/medicines/adjustments"
                       label="Adjust Stock"
                     />
+                    <QuickActionLink href="/medicines/counts" label="Run Stock Count" />
                     <QuickActionLink href="/medicines" label="Review Inventory" />
                   </>
                 ) : null}

@@ -234,6 +234,82 @@ export type CreateAdjustmentResponse = {
   };
 };
 
+export type CycleCountCatalogResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  metrics: {
+    totalBatches: number;
+    totalUnitsOnHand: number;
+    expiringSoonBatchCount: number;
+    lowStockMedicineCount: number;
+  };
+  batches: Array<{
+    stockBatchId: string;
+    medicineId: string;
+    medicineName: string;
+    genericName: string | null;
+    brandName: string | null;
+    form: string | null;
+    strength: string | null;
+    category: string | null;
+    unit: string | null;
+    batchNumber: string;
+    expiryDate: string;
+    systemQuantity: number;
+    totalMedicineQuantity: number;
+    supplierName: string | null;
+    receivedAt: string;
+    isExpiringSoon: boolean;
+    isLowStock: boolean;
+  }>;
+};
+
+export type CycleCountsResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  metrics: {
+    countEvents: number;
+    matchedCount: number;
+    varianceCount: number;
+    shortageEvents: number;
+    overageEvents: number;
+    netVarianceUnits: number;
+  };
+  counts: Array<{
+    id: string;
+    batchNumber: string;
+    medicineName: string;
+    previousQuantity: number;
+    countedQuantity: number;
+    quantityDelta: number;
+    notes: string | null;
+    createdBy: string;
+    createdAt: string;
+    varianceType: "MATCH" | "SHORTAGE" | "OVERAGE";
+  }>;
+};
+
+export type CreateCycleCountResponse = {
+  id: string;
+  medicine: {
+    id: string;
+    name: string;
+  };
+  batchNumber: string;
+  previousQuantity: number;
+  countedQuantity: number;
+  quantityDelta: number;
+  notes: string | null;
+  varianceType: "MATCH" | "SHORTAGE" | "OVERAGE";
+  createdAt: string;
+};
+
 export type AuditLogsResponse = {
   branch: {
     id: string;

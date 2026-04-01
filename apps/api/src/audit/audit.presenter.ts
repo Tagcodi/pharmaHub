@@ -54,9 +54,31 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
       const medicineName = metadata.medicineName ?? "a medicine";
       const batchNumber = metadata.batchNumber ?? "N/A";
       const quantityAfter = metadata.quantityAfter ?? "unknown";
+      const isCycleCount = metadata.source === "cycle_count";
       const isLoss =
         quantityDelta < 0 &&
         ["LOST", "THEFT_SUSPECTED"].includes(String(metadata.reason ?? ""));
+
+      if (isCycleCount) {
+        const previousQuantity = metadata.previousQuantity ?? "unknown";
+        const countedQuantity = metadata.countedQuantity ?? quantityAfter;
+
+        return {
+          id: activity.id,
+          action: activity.action,
+          category: "Inventory",
+          title: "Cycle count completed",
+          description: `${actor} counted ${medicineName} batch ${batchNumber}: system ${previousQuantity}, counted ${countedQuantity}.`,
+          tone:
+            quantityDelta === 0
+              ? "success"
+              : quantityDelta < 0
+                ? "warning"
+                : "info",
+          actor,
+          createdAt: activity.createdAt,
+        };
+      }
 
       return {
         id: activity.id,

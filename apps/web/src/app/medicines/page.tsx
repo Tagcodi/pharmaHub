@@ -158,6 +158,21 @@ export default function MedicinesPage() {
 
           <div className="flex shrink-0 items-center gap-3">
             <Link
+              href="/medicines/counts"
+              className="flex h-11 items-center gap-2 rounded border border-outline/15 bg-surface-low px-5 text-sm font-bold text-on-surface transition-colors hover:bg-surface"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path
+                  d="M3 2.5h8M3 6.5h8M3 10.5h5"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+              Stock Count
+            </Link>
+
+            <Link
               href="/medicines/adjustments"
               className="flex h-11 items-center gap-2 rounded border border-outline/15 bg-surface-low px-5 text-sm font-bold text-on-surface transition-colors hover:bg-surface"
             >
@@ -592,6 +607,23 @@ function MedicineRow({
                 strokeLinecap="round"
               >
                 <path d="M5 12h14" />
+              </svg>
+            </Link>
+            <Link
+              href={`/medicines/counts?medicineId=${medicine.id}`}
+              title="Run stock count"
+              className="rounded p-1.5 text-on-surface-variant transition-colors hover:bg-surface-low hover:text-on-surface"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />
               </svg>
             </Link>
           </div>

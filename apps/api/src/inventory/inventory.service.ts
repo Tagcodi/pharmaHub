@@ -13,6 +13,7 @@ import {
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import { PrismaService } from "../prisma/prisma.service";
 import type { AdjustStockDto } from "./dto/adjust-stock.dto";
+import type { CycleCountDto } from "./dto/cycle-count.dto";
 import type { StockInDto } from "./dto/stock-in.dto";
 
 const LOW_STOCK_THRESHOLD = 20;
@@ -229,6 +230,161 @@ export class InventoryService {
     };
   }
 
+  async getCycleCountCatalog(currentUser: AuthenticatedUser) {
+    const branch = await this.resolveBranch(currentUser);
+    const batches = await this.prisma.stockBatch.findMany({
+      where: {
+        pharmacyId: currentUser.pharmacyId,
+        branchId: branch.id,
+        quantityOnHand: {
+          gt: 0,
+        },
+      },
+      include: {
+        medicine: {
+          select: {
+            id: true,
+            name: true,
+            genericName: true,
+            brandName: true,
+            form: true,
+            strength: true,
+            category: true,
+            unit: true,
+          },
+        },
+      },
+      orderBy: [
+        { medicine: { name: "asc" } },
+        { expiryDate: "asc" },
+        { receivedAt: "desc" },
+      ],
+    });
+
+    const quantityByMedicine = new Map<string, number>();
+
+    for (const batch of batches) {
+      quantityByMedicine.set(
+        batch.medicineId,
+        (quantityByMedicine.get(batch.medicineId) ?? 0) + batch.quantityOnHand
+      );
+    }
+
+    return {
+      branch: {
+        id: branch.id,
+        name: branch.name,
+        code: branch.code,
+      },
+      metrics: {
+        totalBatches: batches.length,
+        totalUnitsOnHand: batches.reduce((sum, batch) => sum + batch.quantityOnHand, 0),
+        expiringSoonBatchCount: batches.filter(
+          (batch) => batch.expiryDate <= this.getNearExpiryCutoff()
+        ).length,
+        lowStockMedicineCount: Array.from(quantityByMedicine.values()).filter(
+          (quantity) => quantity <= LOW_STOCK_THRESHOLD
+        ).length,
+      },
+      batches: batches.map((batch) => ({
+        stockBatchId: batch.id,
+        medicineId: batch.medicine.id,
+        medicineName: batch.medicine.name,
+        genericName: batch.medicine.genericName,
+        brandName: batch.medicine.brandName,
+        form: batch.medicine.form,
+        strength: batch.medicine.strength,
+        category: batch.medicine.category,
+        unit: batch.medicine.unit,
+        batchNumber: batch.batchNumber,
+        expiryDate: batch.expiryDate,
+        systemQuantity: batch.quantityOnHand,
+        totalMedicineQuantity: quantityByMedicine.get(batch.medicineId) ?? batch.quantityOnHand,
+        supplierName: batch.supplierName,
+        receivedAt: batch.receivedAt,
+        isExpiringSoon: batch.expiryDate <= this.getNearExpiryCutoff(),
+        isLowStock:
+          (quantityByMedicine.get(batch.medicineId) ?? batch.quantityOnHand) <=
+          LOW_STOCK_THRESHOLD,
+      })),
+    };
+  }
+
+  async getCycleCounts(currentUser: AuthenticatedUser) {
+    const branch = await this.resolveBranch(currentUser);
+    const auditLogs = await this.prisma.auditLog.findMany({
+      where: {
+        pharmacyId: currentUser.pharmacyId,
+        branchId: branch.id,
+        action: AuditAction.STOCK_ADJUSTED,
+      },
+      include: {
+        user: {
+          select: {
+            fullName: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 100,
+    });
+
+    const cycleCounts = auditLogs
+      .map((log) => {
+        const metadata = this.asAuditRecord(log.metadata);
+
+        if (metadata.source !== "cycle_count") {
+          return null;
+        }
+
+        const previousQuantity = this.asNumber(metadata.previousQuantity);
+        const countedQuantity = this.asNumber(metadata.countedQuantity);
+        const quantityDelta = this.asNumber(metadata.quantityDelta);
+
+        return {
+          id: log.id,
+          batchNumber: String(metadata.batchNumber ?? "N/A"),
+          medicineName: String(metadata.medicineName ?? "Unknown"),
+          previousQuantity,
+          countedQuantity,
+          quantityDelta,
+          notes: typeof metadata.notes === "string" ? metadata.notes : null,
+          createdBy: log.user?.fullName ?? "System",
+          createdAt: log.createdAt,
+          varianceType:
+            quantityDelta === 0
+              ? "MATCH"
+              : quantityDelta < 0
+                ? "SHORTAGE"
+                : "OVERAGE",
+        };
+      })
+      .filter((item) => item !== null);
+
+    return {
+      branch: {
+        id: branch.id,
+        name: branch.name,
+        code: branch.code,
+      },
+      metrics: {
+        countEvents: cycleCounts.length,
+        matchedCount: cycleCounts.filter((item) => item.varianceType === "MATCH")
+          .length,
+        varianceCount: cycleCounts.filter((item) => item.quantityDelta !== 0).length,
+        shortageEvents: cycleCounts.filter((item) => item.quantityDelta < 0).length,
+        overageEvents: cycleCounts.filter((item) => item.quantityDelta > 0).length,
+        netVarianceUnits: cycleCounts.reduce(
+          (sum, item) => sum + item.quantityDelta,
+          0
+        ),
+      },
+      counts: cycleCounts,
+    };
+  }
+
   async adjustStock(currentUser: AuthenticatedUser, dto: AdjustStockDto) {
     const branch = await this.resolveBranch(currentUser);
     const notes = this.normalizeOptional(dto.notes);
@@ -347,6 +503,135 @@ export class InventoryService {
         id: result.batch.id,
         batchNumber: result.batch.batchNumber,
       },
+    };
+  }
+
+  async cycleCount(currentUser: AuthenticatedUser, dto: CycleCountDto) {
+    const branch = await this.resolveBranch(currentUser);
+    const notes = this.normalizeOptional(dto.notes);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const batch = await tx.stockBatch.findFirst({
+        where: {
+          id: dto.stockBatchId,
+          pharmacyId: currentUser.pharmacyId,
+          branchId: branch.id,
+        },
+        include: {
+          medicine: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      if (!batch) {
+        throw new NotFoundException("Selected stock batch was not found.");
+      }
+
+      const previousQuantity = batch.quantityOnHand;
+      const countedQuantity = dto.countedQuantity;
+      const quantityDelta = countedQuantity - previousQuantity;
+      let adjustmentId: string | null = null;
+
+      if (quantityDelta !== 0) {
+        await tx.stockBatch.update({
+          where: {
+            id: batch.id,
+          },
+          data: {
+            quantityOnHand: countedQuantity,
+          },
+        });
+
+        const adjustment = await tx.inventoryAdjustment.create({
+          data: {
+            pharmacyId: currentUser.pharmacyId,
+            branchId: branch.id,
+            medicineId: batch.medicineId,
+            stockBatchId: batch.id,
+            reason: AdjustmentReason.COUNT_CORRECTION,
+            notes,
+            quantityDelta,
+            createdById: currentUser.userId,
+          },
+        });
+
+        adjustmentId = adjustment.id;
+
+        await tx.stockMovement.create({
+          data: {
+            pharmacyId: currentUser.pharmacyId,
+            branchId: branch.id,
+            medicineId: batch.medicineId,
+            stockBatchId: batch.id,
+            movementType:
+              quantityDelta > 0
+                ? MovementType.ADJUSTMENT_IN
+                : MovementType.ADJUSTMENT_OUT,
+            referenceType: ReferenceType.INVENTORY_ADJUSTMENT,
+            referenceId: adjustment.id,
+            quantityDelta,
+            quantityAfter: countedQuantity,
+            createdById: currentUser.userId,
+          },
+        });
+      }
+
+      const auditLog = await tx.auditLog.create({
+        data: {
+          pharmacyId: currentUser.pharmacyId,
+          branchId: branch.id,
+          userId: currentUser.userId,
+          action: AuditAction.STOCK_ADJUSTED,
+          entityType: "CycleCount",
+          entityId: adjustmentId,
+          metadata: {
+            source: "cycle_count",
+            medicineId: batch.medicine.id,
+            medicineName: batch.medicine.name,
+            batchNumber: batch.batchNumber,
+            previousQuantity,
+            countedQuantity,
+            quantityDelta,
+            quantityAfter: countedQuantity,
+            notes,
+          },
+        },
+      });
+
+      return {
+        id: auditLog.id,
+        medicine: batch.medicine,
+        batchNumber: batch.batchNumber,
+        previousQuantity,
+        countedQuantity,
+        quantityDelta,
+        notes,
+        createdAt: auditLog.createdAt,
+      };
+    });
+
+    return {
+      id: result.id,
+      medicine: {
+        id: result.medicine.id,
+        name: result.medicine.name,
+      },
+      batchNumber: result.batchNumber,
+      previousQuantity: result.previousQuantity,
+      countedQuantity: result.countedQuantity,
+      quantityDelta: result.quantityDelta,
+      notes: result.notes,
+      varianceType:
+        result.quantityDelta === 0
+          ? "MATCH"
+          : result.quantityDelta < 0
+            ? "SHORTAGE"
+            : "OVERAGE",
+      createdAt: result.createdAt,
     };
   }
 
@@ -805,6 +1090,19 @@ export class InventoryService {
     return quantityDelta > 0
       ? MovementType.ADJUSTMENT_IN
       : MovementType.ADJUSTMENT_OUT;
+  }
+
+  private asAuditRecord(value: Prisma.JsonValue | null) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {} as Record<string, Prisma.JsonValue>;
+    }
+
+    return value as Record<string, Prisma.JsonValue>;
+  }
+
+  private asNumber(value: Prisma.JsonValue | null | undefined) {
+    const numeric = Number(value ?? 0);
+    return Number.isFinite(numeric) ? numeric : 0;
   }
 
   private getNearExpiryCutoff() {

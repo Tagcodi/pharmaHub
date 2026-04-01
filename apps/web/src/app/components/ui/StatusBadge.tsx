@@ -1,6 +1,6 @@
 type StatusBadgeProps = {
   label: string;
-  tone: "success" | "warning" | "danger" | "neutral";
+  tone: "success" | "warning" | "danger" | "neutral" | "info";
   className?: string;
 };
 
@@ -9,6 +9,7 @@ const TONE_CLASSES = {
   warning: "bg-tertiary-fixed text-on-tertiary-fixed-variant",
   danger: "bg-error-container text-on-error-container",
   neutral: "bg-surface-low text-on-surface-variant",
+  info: "bg-primary/[0.08] text-primary",
 } as const;
 
 export function StatusBadge({
