@@ -22,6 +22,7 @@ import {
   getAuthHeaders,
   getStoredToken,
   type CreateSaleResponse,
+  type SaleReceiptResponse,
   type SalesCatalogResponse,
   type SalesReconciliationResponse,
   type SalesOverviewResponse,
@@ -64,7 +65,10 @@ export default function SalesPage() {
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [voidReason, setVoidReason] = useState("Dispensing mistake");
   const [voidNotes, setVoidNotes] = useState("");
-  const [receipt, setReceipt] = useState<CreateSaleResponse | null>(null);
+  const [receipt, setReceipt] = useState<SaleReceiptResponse | null>(null);
+  const [loadingReceiptSaleId, setLoadingReceiptSaleId] = useState<string | null>(
+    null
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshingReconciliation, setIsRefreshingReconciliation] =
@@ -235,7 +239,10 @@ export default function SalesPage() {
         }),
       });
 
-      setReceipt(sale);
+      setReceipt({
+        ...sale,
+        status: "COMPLETED",
+      });
       setCart([]);
       setSuccessMessage(
         text.saleCompletedMessage
@@ -247,6 +254,33 @@ export default function SalesPage() {
       setError(formatError(err));
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleLoadReceipt(saleId: string) {
+    const token = getStoredToken();
+
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    setLoadingReceiptSaleId(saleId);
+    setError(null);
+
+    try {
+      const result = await fetchJson<SaleReceiptResponse>(`/sales/${saleId}/receipt`, {
+        headers: getAuthHeaders(token),
+      });
+
+      setReceipt(result);
+      setSuccessMessage(
+        text.receiptLoadedMessage.replace("{saleNumber}", result.saleNumber)
+      );
+    } catch (err) {
+      setError(formatError(err));
+    } finally {
+      setLoadingReceiptSaleId(null);
     }
   }
 
@@ -787,6 +821,16 @@ export default function SalesPage() {
                                 .join(", ")}
                               {sale.items.length > 2 ? ` +${sale.items.length - 2}` : ""}
                             </p>
+                            <button
+                              type="button"
+                              onClick={() => void handleLoadReceipt(sale.id)}
+                              disabled={loadingReceiptSaleId === sale.id}
+                              className="mt-2 text-xs font-semibold text-primary transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {loadingReceiptSaleId === sale.id
+                                ? text.loadingReceipt
+                                : text.openReceipt}
+                            </button>
                           </td>
                           <td className="px-3 py-3.5 text-sm text-on-surface-variant">
                             {sale.soldBy}
@@ -1288,6 +1332,16 @@ export default function SalesPage() {
                     <p className="mt-0.5 text-xs font-semibold text-on-surface-variant">
                       {formatPaymentMethod(receipt.paymentMethod, text)}
                     </p>
+                    <p
+                      className={[
+                        "mt-0.5 text-xs font-semibold",
+                        receipt.status === "VOIDED"
+                          ? "text-on-error-container"
+                          : "text-secondary",
+                      ].join(" ")}
+                    >
+                      {receipt.status === "VOIDED" ? text.voided : text.completed}
+                    </p>
                   </div>
                 </div>
 
@@ -1473,6 +1527,7 @@ const SALES_COPY = {
     thisBranch: "this branch",
     addMedicineBeforeCheckout: "Add at least one medicine to the cart before checkout.",
     saleCompletedMessage: "Sale {saleNumber} completed — ETB {amount}.",
+    receiptLoadedMessage: "Receipt {saleNumber} loaded.",
     selectSaleBeforeVoiding: "Select a completed sale before voiding it.",
     voidReasonRequired: "A void reason is required.",
     saleVoidedMessage: "Sale {saleNumber} voided. {units} units restored to stock.",
@@ -1486,6 +1541,8 @@ const SALES_COPY = {
     liveStockFrom: "Live stock from",
     batchDeductionAutomatic: "— batch deduction is automatic on every completed sale.",
     viewLastReceipt: "View Last Receipt",
+    openReceipt: "Open Receipt",
+    loadingReceipt: "Loading…",
     todaysRevenue: "Today's Revenue",
     completedTicketsToday: "completed tickets today",
     avgTicket: "Avg. Ticket",
@@ -1587,6 +1644,7 @@ const SALES_COPY = {
     thisBranch: "ይህ ቅርንጫፍ",
     addMedicineBeforeCheckout: "ከመክፈያ በፊት ቢያንስ አንድ መድሃኒት ወደ ጋሪው ያክሉ።",
     saleCompletedMessage: "ሽያጭ {saleNumber} ተጠናቋል — ETB {amount}።",
+    receiptLoadedMessage: "ደረሰኝ {saleNumber} ተጭኗል።",
     selectSaleBeforeVoiding: "ከመሰረዝ በፊት የተጠናቀቀ ሽያጭ ይምረጡ።",
     voidReasonRequired: "የመሰረዝ ምክንያት ያስፈልጋል።",
     saleVoidedMessage: "ሽያጭ {saleNumber} ተሰርዟል። {units} ዩኒቶች ወደ እቃ ተመልሰዋል።",
@@ -1600,6 +1658,8 @@ const SALES_COPY = {
     liveStockFrom: "ቀጥታ እቃ ከ",
     batchDeductionAutomatic: "— በእያንዳንዱ የተጠናቀቀ ሽያጭ ላይ የባች ቅናሽ በራስ-ሰር ይደረጋል።",
     viewLastReceipt: "የመጨረሻውን ደረሰኝ እይ",
+    openReceipt: "ደረሰኝ ክፈት",
+    loadingReceipt: "በመጫን ላይ…",
     todaysRevenue: "የዛሬ ገቢ",
     completedTicketsToday: "ዛሬ የተጠናቀቁ ቲኬቶች",
     avgTicket: "አማካይ ቲኬት",
@@ -1697,6 +1757,7 @@ const SALES_COPY = {
     thisBranch: "damee kana",
     addMedicineBeforeCheckout: "Kaffaltii dura qoricha tokko xiqqaate gaarii keessa galchi.",
     saleCompletedMessage: "Gurgurtaan {saleNumber} xumurameera — ETB {amount}.",
+    receiptLoadedMessage: "Ragaan {saleNumber} fe'ameera.",
     selectSaleBeforeVoiding: "Haqa dura gurgurtaa xumurame filadhu.",
     voidReasonRequired: "Sababni haqaa barbaachisaadha.",
     saleVoidedMessage: "Gurgurtaan {saleNumber} haqameera. Yuunitiin {units} gara kuusaa deebi'eera.",
@@ -1710,6 +1771,8 @@ const SALES_COPY = {
     liveStockFrom: "Kuusaan yeroo ammaa kan",
     batchDeductionAutomatic: "— baachiin gurgurtaa xumurame hundatti ofumaan hir'ata.",
     viewLastReceipt: "Ragaa Dhumaa Ilaali",
+    openReceipt: "Ragaa Bani",
+    loadingReceipt: "Fe'amaa jira…",
     todaysRevenue: "Galii Har'aa",
     completedTicketsToday: "tikettii har'a xumuraman",
     avgTicket: "Tikettii Giddugaleessaa",

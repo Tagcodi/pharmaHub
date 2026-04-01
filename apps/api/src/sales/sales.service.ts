@@ -434,6 +434,57 @@ export class SalesService {
     };
   }
 
+  async getSaleReceipt(currentUser: AuthenticatedUser, saleId: string) {
+    const branch = await this.resolveBranch(currentUser);
+    const sale = await this.prisma.sale.findFirst({
+      where: {
+        id: saleId,
+        pharmacyId: currentUser.pharmacyId,
+        branchId: branch.id,
+      },
+      include: {
+        items: {
+          include: {
+            medicine: {
+              select: {
+                name: true,
+              },
+            },
+            stockBatch: {
+              select: {
+                batchNumber: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+      },
+    });
+
+    if (!sale) {
+      throw new NotFoundException("Sale receipt was not found.");
+    }
+
+    return {
+      id: sale.id,
+      saleNumber: sale.saleNumber,
+      status: sale.status,
+      totalAmount: this.roundCurrency(this.toNumber(sale.totalAmount)),
+      paymentMethod: sale.paymentMethod,
+      soldAt: sale.soldAt,
+      items: sale.items.map((item) => ({
+        medicineId: item.medicineId,
+        medicineName: item.medicine.name,
+        quantity: item.quantity,
+        batchNumber: item.stockBatch.batchNumber,
+        unitPrice: this.roundCurrency(this.toNumber(item.unitPrice)),
+        lineTotal: this.roundCurrency(this.toNumber(item.lineTotal)),
+      })),
+    };
+  }
+
   async createSale(currentUser: AuthenticatedUser, dto: CreateSaleDto) {
     const branch = await this.resolveBranch(currentUser);
     const result = await this.prisma.$transaction((tx) =>

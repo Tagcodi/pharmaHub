@@ -1718,6 +1718,49 @@ async function main() {
       dispensePrescriptionResponse.body.sale.saleNumber
     );
 
+    console.log("47b. Reprinting the sale receipt from persisted data");
+    const saleReceiptResponse = await requestJson<{
+      id: string;
+      saleNumber: string;
+      status: string;
+      totalAmount: number;
+      paymentMethod: string;
+      items: Array<{
+        medicineId: string;
+        medicineName: string;
+        quantity: number;
+        batchNumber: string;
+        unitPrice: number;
+        lineTotal: number;
+      }>;
+    }>(
+      context.baseUrl,
+      `/sales/${dispensePrescriptionResponse.body.sale.id}/receipt`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    assert.equal(saleReceiptResponse.status, 200);
+    assert.equal(saleReceiptResponse.body.id, dispensePrescriptionResponse.body.sale.id);
+    assert.equal(
+      saleReceiptResponse.body.saleNumber,
+      dispensePrescriptionResponse.body.sale.saleNumber
+    );
+    assert.equal(saleReceiptResponse.body.status, "COMPLETED");
+    assert.equal(saleReceiptResponse.body.totalAmount, 30);
+    assert.equal(saleReceiptResponse.body.paymentMethod, "MOBILE_MONEY");
+    assert.equal(saleReceiptResponse.body.items[0]?.medicineName, "Paracetamol");
+    assert.equal(saleReceiptResponse.body.items[0]?.quantity, 2);
+    assert.match(
+      saleReceiptResponse.body.items[0]?.batchNumber ?? "",
+      /^B-\d{4}-\d{3}$/
+    );
+    assert.equal(saleReceiptResponse.body.items[0]?.unitPrice, 15);
+    assert.equal(saleReceiptResponse.body.items[0]?.lineTotal, 30);
+
     console.log("48. Verifying the dispensed prescription and linked sale in the queue");
     const prescriptionsAfterDispenseResponse = await requestJson<{
       metrics: {

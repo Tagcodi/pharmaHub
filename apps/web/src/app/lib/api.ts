@@ -862,6 +862,23 @@ export type CreateSaleResponse = {
   }>;
 };
 
+export type SaleReceiptResponse = {
+  id: string;
+  saleNumber: string;
+  status: "COMPLETED" | "VOIDED";
+  totalAmount: number;
+  paymentMethod: PaymentMethodValue;
+  soldAt: string;
+  items: Array<{
+    medicineId: string;
+    medicineName: string;
+    quantity: number;
+    batchNumber: string;
+    unitPrice: number;
+    lineTotal: number;
+  }>;
+};
+
 export type DispensePrescriptionResponse = {
   prescription: PrescriptionRecord;
   sale: CreateSaleResponse;

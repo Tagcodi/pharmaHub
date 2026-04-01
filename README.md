@@ -121,6 +121,8 @@ Run the whole stack with Docker:
 docker compose up --build
 ```
 
+The API container runs `prisma migrate deploy` automatically on startup, so a fresh database is initialized before the server starts.
+
 ## Useful Commands
 
 ```bash

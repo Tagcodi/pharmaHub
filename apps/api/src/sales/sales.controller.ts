@@ -39,6 +39,15 @@ export class SalesController {
     return this.salesService.getReconciliation(user, query);
   }
 
+  @Get(":saleId/receipt")
+  @Roles("OWNER", "PHARMACIST", "CASHIER")
+  getSaleReceipt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("saleId") saleId: string
+  ) {
+    return this.salesService.getSaleReceipt(user, saleId);
+  }
+
   @Post()
   @Roles("OWNER", "PHARMACIST", "CASHIER")
   createSale(

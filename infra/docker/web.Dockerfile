@@ -1,5 +1,6 @@
 FROM node:24-alpine AS deps
 WORKDIR /app
+ENV PRISMA_SKIP_POSTINSTALL_GENERATE=true
 
 COPY package.json ./
 COPY apps/api/package.json apps/api/package.json
