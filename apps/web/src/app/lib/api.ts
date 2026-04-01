@@ -381,6 +381,102 @@ export type AlertsOverviewResponse = {
   }>;
 };
 
+export type PurchaseOrderCatalogResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  metrics: {
+    totalMedicines: number;
+    lowStockCount: number;
+    recommendedOrderUnits: number;
+    openOrderCount: number;
+    outstandingOrderUnits: number;
+  };
+  lowStockMedicines: Array<{
+    id: string;
+    name: string;
+    genericName: string | null;
+    form: string | null;
+    strength: string | null;
+    unit: string | null;
+    totalQuantityOnHand: number;
+    activeBatchCount: number;
+    isLowStock: boolean;
+    recommendedOrderQuantity: number;
+    lastSupplierName: string | null;
+    lastCostPrice: number | null;
+    lastSellingPrice: number | null;
+    nextExpiryDate: string | null;
+  }>;
+  medicines: Array<{
+    id: string;
+    name: string;
+    genericName: string | null;
+    form: string | null;
+    strength: string | null;
+    unit: string | null;
+    totalQuantityOnHand: number;
+    activeBatchCount: number;
+    isLowStock: boolean;
+    recommendedOrderQuantity: number;
+    lastSupplierName: string | null;
+    lastCostPrice: number | null;
+    lastSellingPrice: number | null;
+    nextExpiryDate: string | null;
+  }>;
+};
+
+export type PurchaseOrderRecord = {
+  id: string;
+  orderNumber: string;
+  status: "OPEN" | "PARTIALLY_RECEIVED" | "RECEIVED" | "CANCELLED";
+  supplierName: string;
+  notes: string | null;
+  orderedAt: string;
+  receivedAt: string | null;
+  createdAt: string;
+  createdBy: string;
+  totalRequestedQuantity: number;
+  totalReceivedQuantity: number;
+  outstandingQuantity: number;
+  totalOrderedValue: number;
+  items: Array<{
+    id: string;
+    requestedQuantity: number;
+    receivedQuantity: number;
+    outstandingQuantity: number;
+    unitCost: number;
+    lineValue: number;
+    medicine: {
+      id: string;
+      name: string;
+      genericName: string | null;
+      form: string | null;
+      strength: string | null;
+      unit: string | null;
+    };
+  }>;
+};
+
+export type PurchaseOrdersResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  metrics: {
+    totalOrders: number;
+    openOrders: number;
+    receivedOrders: number;
+    cancelledOrders: number;
+    totalOrderedValue: number;
+    outstandingUnits: number;
+  };
+  orders: PurchaseOrderRecord[];
+};
+
 export type AuditLogsResponse = {
   branch: {
     id: string;

@@ -128,6 +128,37 @@ export function serializeAuditItem(activity: AuditRecord): SerializedAuditItem {
         actor,
         createdAt: activity.createdAt,
       };
+    case AuditAction.PURCHASE_ORDER_CREATED:
+      return {
+        id: activity.id,
+        action: activity.action,
+        category: "Inventory",
+        title: "Purchase order created",
+        description: `${actor} raised ${metadata.orderNumber ?? "a purchase order"} for ${
+          metadata.supplierName ?? "a supplier"
+        }.`,
+        tone: "info",
+        actor,
+        createdAt: activity.createdAt,
+      };
+    case AuditAction.PURCHASE_ORDER_RECEIVED:
+      return {
+        id: activity.id,
+        action: activity.action,
+        category: "Inventory",
+        title: "Purchase order received",
+        description: `${actor} received ${
+          metadata.totalReceivedQuantity ?? "new"
+        } units for ${metadata.orderNumber ?? "a purchase order"} from ${
+          metadata.supplierName ?? "a supplier"
+        }.`,
+        tone:
+          metadata.status === "RECEIVED"
+            ? "success"
+            : "info",
+        actor,
+        createdAt: activity.createdAt,
+      };
     case AuditAction.LOGIN_SUCCESS:
       return {
         id: activity.id,
