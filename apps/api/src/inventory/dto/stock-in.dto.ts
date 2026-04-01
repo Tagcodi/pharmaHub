@@ -47,8 +47,8 @@ export class StockInDto {
   unit?: string;
 
   @IsString()
-  @IsNotEmpty()
-  batchNumber!: string;
+  @IsOptional()
+  batchNumber?: string;
 
   @IsDateString()
   expiryDate!: string;

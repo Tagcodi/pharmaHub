@@ -84,6 +84,7 @@ export type StockInResponse = {
     name: string;
     genericName: string | null;
     brandName: string | null;
+    sku: string | null;
     form: string | null;
     strength: string | null;
     category: string | null;

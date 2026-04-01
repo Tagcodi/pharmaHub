@@ -11,6 +11,12 @@ import {
   ReferenceType,
 } from "@prisma/client";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
+import {
+  appendIdentifierSequence,
+  buildBatchBase,
+  buildSkuBase,
+  normalizeIdentifierInput,
+} from "../common/utils/inventory-identifiers.util";
 import { PrismaService } from "../prisma/prisma.service";
 import type { AdjustStockDto } from "./dto/adjust-stock.dto";
 import type { CreateDisposalDto } from "./dto/create-disposal.dto";
@@ -921,7 +927,7 @@ export class InventoryService {
 
   async stockIn(currentUser: AuthenticatedUser, dto: StockInDto) {
     const branch = await this.resolveBranch(currentUser);
-    const batchNumber = dto.batchNumber.trim();
+    const requestedBatchNumber = normalizeIdentifierInput(dto.batchNumber);
     const expiryDate = new Date(dto.expiryDate);
     const receivedAt = dto.receivedAt ? new Date(dto.receivedAt) : new Date();
 
@@ -941,24 +947,21 @@ export class InventoryService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       const { medicine, wasCreated } = await this.resolveMedicine(tx, currentUser, dto);
-
-      const existingBatch = await tx.stockBatch.findFirst({
-        where: {
-          pharmacyId: currentUser.pharmacyId,
-          branchId: branch.id,
-          medicineId: medicine.id,
-          batchNumber: {
-            equals: batchNumber,
-            mode: "insensitive",
-          },
-        },
-      });
-
-      if (existingBatch) {
-        throw new BadRequestException(
-          "That batch number already exists for the selected medicine."
-        );
-      }
+      const batchNumber = requestedBatchNumber
+        ? await this.ensureUniqueBatchNumber(tx, {
+            pharmacyId: currentUser.pharmacyId,
+            branchId: branch.id,
+            medicineId: medicine.id,
+            batchNumber: requestedBatchNumber,
+            medicineName: medicine.name,
+          })
+        : await this.generateUniqueBatchNumber(tx, {
+            pharmacyId: currentUser.pharmacyId,
+            branchId: branch.id,
+            medicineId: medicine.id,
+            medicineName: medicine.name,
+            receivedAt,
+          });
 
       const batch = await tx.stockBatch.create({
         data: {
@@ -1042,6 +1045,7 @@ export class InventoryService {
         name: result.medicine.name,
         genericName: result.medicine.genericName,
         brandName: result.medicine.brandName,
+        sku: result.medicine.sku,
         form: result.medicine.form,
         strength: result.medicine.strength,
         category: result.medicine.category,
@@ -1108,7 +1112,24 @@ export class InventoryService {
         throw new NotFoundException("Selected medicine was not found.");
       }
 
-      return { medicine, wasCreated: false };
+      if (medicine.sku) {
+        return { medicine, wasCreated: false };
+      }
+
+      const updatedMedicine = await tx.medicine.update({
+        where: {
+          id: medicine.id,
+        },
+        data: {
+          sku: await this.generateUniqueSku(tx, currentUser.pharmacyId, {
+            name: medicine.name,
+            strength: medicine.strength,
+            form: medicine.form,
+          }),
+        },
+      });
+
+      return { medicine: updatedMedicine, wasCreated: false };
     }
 
     const name = this.normalizeRequired(
@@ -1117,6 +1138,7 @@ export class InventoryService {
     );
     const strength = this.normalizeOptional(dto.strength);
     const form = this.normalizeOptional(dto.form);
+    const requestedSku = normalizeIdentifierInput(dto.sku);
 
     const existingMedicine = await tx.medicine.findFirst({
       where: {
@@ -1148,7 +1170,25 @@ export class InventoryService {
         data: {
           genericName: existingMedicine.genericName ?? this.normalizeOptional(dto.genericName),
           brandName: existingMedicine.brandName ?? this.normalizeOptional(dto.brandName),
-          sku: existingMedicine.sku ?? this.normalizeOptional(dto.sku),
+          sku:
+            existingMedicine.sku ??
+            (requestedSku
+              ? await this.ensureUniqueSku(
+                  tx,
+                  currentUser.pharmacyId,
+                  requestedSku,
+                  existingMedicine.id
+                )
+              : await this.generateUniqueSku(
+                  tx,
+                  currentUser.pharmacyId,
+                  {
+                    name,
+                    strength,
+                    form,
+                  },
+                  existingMedicine.id
+                )),
           category: existingMedicine.category ?? this.normalizeOptional(dto.category),
           unit: existingMedicine.unit ?? this.normalizeOptional(dto.unit),
         },
@@ -1163,7 +1203,13 @@ export class InventoryService {
         name,
         genericName: this.normalizeOptional(dto.genericName),
         brandName: this.normalizeOptional(dto.brandName),
-        sku: this.normalizeOptional(dto.sku),
+        sku: requestedSku
+          ? await this.ensureUniqueSku(tx, currentUser.pharmacyId, requestedSku)
+          : await this.generateUniqueSku(tx, currentUser.pharmacyId, {
+              name,
+              strength,
+              form,
+            }),
         form,
         strength,
         category: this.normalizeOptional(dto.category),
@@ -1508,6 +1554,161 @@ export class InventoryService {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     return value.getTime() < todayStart.getTime();
+  }
+
+  private async ensureUniqueSku(
+    tx: Prisma.TransactionClient,
+    pharmacyId: string,
+    sku: string,
+    excludeMedicineId?: string
+  ) {
+    const existingMedicine = await tx.medicine.findFirst({
+      where: {
+        pharmacyId,
+        sku: {
+          equals: sku,
+          mode: "insensitive",
+        },
+        ...(excludeMedicineId
+          ? {
+              id: {
+                not: excludeMedicineId,
+              },
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingMedicine) {
+      throw new BadRequestException(
+        "That SKU is already in use for another medicine."
+      );
+    }
+
+    return sku;
+  }
+
+  private async generateUniqueSku(
+    tx: Prisma.TransactionClient,
+    pharmacyId: string,
+    input: {
+      name: string;
+      strength?: string | null;
+      form?: string | null;
+    },
+    excludeMedicineId?: string
+  ) {
+    const base = buildSkuBase(input);
+
+    for (let sequence = 1; sequence <= 999; sequence += 1) {
+      const candidate = appendIdentifierSequence(base, sequence);
+      const existingMedicine = await tx.medicine.findFirst({
+        where: {
+          pharmacyId,
+          sku: {
+            equals: candidate,
+            mode: "insensitive",
+          },
+          ...(excludeMedicineId
+            ? {
+                id: {
+                  not: excludeMedicineId,
+                },
+              }
+            : {}),
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!existingMedicine) {
+        return candidate;
+      }
+    }
+
+    throw new BadRequestException(
+      "Unable to generate a unique SKU right now. Please enter one manually."
+    );
+  }
+
+  private async ensureUniqueBatchNumber(
+    tx: Prisma.TransactionClient,
+    input: {
+      pharmacyId: string;
+      branchId: string;
+      medicineId: string;
+      batchNumber: string;
+      medicineName: string;
+    }
+  ) {
+    const existingBatch = await tx.stockBatch.findFirst({
+      where: {
+        pharmacyId: input.pharmacyId,
+        branchId: input.branchId,
+        medicineId: input.medicineId,
+        batchNumber: {
+          equals: input.batchNumber,
+          mode: "insensitive",
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingBatch) {
+      throw new BadRequestException(
+        `Batch ${input.batchNumber} already exists for ${input.medicineName}.`
+      );
+    }
+
+    return input.batchNumber;
+  }
+
+  private async generateUniqueBatchNumber(
+    tx: Prisma.TransactionClient,
+    input: {
+      pharmacyId: string;
+      branchId: string;
+      medicineId: string;
+      medicineName: string;
+      receivedAt: Date;
+    }
+  ) {
+    const base = buildBatchBase({
+      medicineName: input.medicineName,
+      receivedAt: input.receivedAt,
+    });
+
+    for (let sequence = 1; sequence <= 999; sequence += 1) {
+      const candidate = appendIdentifierSequence(base, sequence);
+      const existingBatch = await tx.stockBatch.findFirst({
+        where: {
+          pharmacyId: input.pharmacyId,
+          branchId: input.branchId,
+          medicineId: input.medicineId,
+          batchNumber: {
+            equals: candidate,
+            mode: "insensitive",
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!existingBatch) {
+        return candidate;
+      }
+    }
+
+    throw new BadRequestException(
+      `Unable to generate a unique batch number for ${input.medicineName}. Please enter one manually.`
+    );
   }
 
   private normalizeOptional(value?: string) {

@@ -138,6 +138,8 @@ export const messages = {
       "EPSS, local wholesaler, or distributor",
     "purchaseOrders.placeholder.batch": "Supplier batch code",
     "purchaseOrders.placeholder.notes": "Optional supplier or order notes.",
+    "purchaseOrders.hint.autoBatch":
+      "Leave blank to auto-generate a unique batch number for this medicine.",
     "purchaseOrders.button.addDraftLine": "Add Draft Line",
     "purchaseOrders.button.createOrder": "Create Purchase Order",
     "purchaseOrders.button.creatingOrder": "Creating order…",
@@ -328,6 +330,8 @@ export const messages = {
     "purchaseOrders.placeholder.supplier": "EPSS, የአካባቢ ጅምላ ሻጭ ወይም አቅራቢ",
     "purchaseOrders.placeholder.batch": "የአቅራቢ ባች ኮድ",
     "purchaseOrders.placeholder.notes": "አማራጭ የአቅራቢ ወይም የትዕዛዝ ማስታወሻዎች።",
+    "purchaseOrders.hint.autoBatch":
+      "ባዶ ቢተዉት ለዚህ መድሃኒት ልዩ የባች ቁጥር በራስ-ሰር ይፈጠራል።",
     "purchaseOrders.button.addDraftLine": "የድራፍት መስመር አክል",
     "purchaseOrders.button.createOrder": "የግዥ ትዕዛዝ ፍጠር",
     "purchaseOrders.button.creatingOrder": "ትዕዛዝ በመፍጠር ላይ…",
@@ -514,6 +518,8 @@ export const messages = {
     "purchaseOrders.placeholder.supplier": "EPSS, gurgurtaa guddaa naannoo yookaan raabsaa",
     "purchaseOrders.placeholder.batch": "Koodii baachii dhiyeessaa",
     "purchaseOrders.placeholder.notes": "Yaadannoo dhiyeessaa yookaan ajajaa filannoo.",
+    "purchaseOrders.hint.autoBatch":
+      "Duwwaa yoo dhiifte, lakkoofsi baachii addaa qoricha kanaaf ofumaan ni uumama.",
     "purchaseOrders.button.addDraftLine": "Sarara Draftii Dabaluu",
     "purchaseOrders.button.createOrder": "Ajaja Bittaa Uumi",
     "purchaseOrders.button.creatingOrder": "Ajajni uumamaa jira…",

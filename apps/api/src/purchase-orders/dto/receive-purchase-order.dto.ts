@@ -17,8 +17,8 @@ class ReceivePurchaseOrderItemDto {
   purchaseOrderItemId!: string;
 
   @IsString()
-  @IsNotEmpty()
-  batchNumber!: string;
+  @IsOptional()
+  batchNumber?: string;
 
   @IsString()
   @IsNotEmpty()
