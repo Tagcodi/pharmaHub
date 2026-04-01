@@ -1,10 +1,12 @@
-import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { Roles } from "../common/decorators/roles.decorator";
 import { JwtAuthGuard } from "../common/guards/jwt-auth.guard";
 import { RolesGuard } from "../common/guards/roles.guard";
 import type { AuthenticatedUser } from "../common/interfaces/authenticated-request.interface";
 import { CreateSaleDto } from "./dto/create-sale.dto";
+import { SalesRangeDto } from "./dto/sales-range.dto";
+import { VoidSaleDto } from "./dto/void-sale.dto";
 import { SalesService } from "./sales.service";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -28,6 +30,15 @@ export class SalesController {
     return this.salesService.getOverview(user);
   }
 
+  @Get("reconciliation")
+  @Roles("OWNER", "PHARMACIST")
+  getReconciliation(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: SalesRangeDto
+  ) {
+    return this.salesService.getReconciliation(user, query);
+  }
+
   @Post()
   @Roles("OWNER", "PHARMACIST", "CASHIER")
   createSale(
@@ -35,5 +46,15 @@ export class SalesController {
     @Body() dto: CreateSaleDto
   ) {
     return this.salesService.createSale(user, dto);
+  }
+
+  @Patch(":saleId/void")
+  @Roles("OWNER", "PHARMACIST")
+  voidSale(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("saleId") saleId: string,
+    @Body() dto: VoidSaleDto
+  ) {
+    return this.salesService.voidSale(user, saleId, dto);
   }
 }
