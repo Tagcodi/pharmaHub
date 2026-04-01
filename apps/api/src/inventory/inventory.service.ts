@@ -419,6 +419,13 @@ export class InventoryService {
       totalCostValue: this.roundCurrency(totalCostValue),
       activeBatchCount: activeBatches.length,
       nearExpiryBatchCount,
+      currentBatchNumber: nextExpiryBatch?.batchNumber ?? null,
+      currentCostPrice: nextExpiryBatch
+        ? this.roundCurrency(this.toNumber(nextExpiryBatch.costPrice))
+        : null,
+      currentSellingPrice: nextExpiryBatch
+        ? this.roundCurrency(this.toNumber(nextExpiryBatch.sellingPrice))
+        : null,
       latestBatchNumber: latestBatch?.batchNumber ?? null,
       latestCostPrice: latestBatch
         ? this.roundCurrency(this.toNumber(latestBatch.costPrice))

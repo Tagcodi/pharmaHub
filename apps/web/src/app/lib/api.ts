@@ -46,6 +46,9 @@ export type InventoryMedicineSummary = MedicineCatalogRecord & {
   totalCostValue: number;
   activeBatchCount: number;
   nearExpiryBatchCount: number;
+  currentBatchNumber: string | null;
+  currentCostPrice: number | null;
+  currentSellingPrice: number | null;
   latestBatchNumber: string | null;
   latestCostPrice: number | null;
   latestSellingPrice: number | null;
@@ -133,6 +136,74 @@ export type DashboardOverviewResponse = {
     description: string;
     tone: "success" | "info" | "neutral" | "danger";
     createdAt: string;
+  }>;
+};
+
+export type SalesCatalogResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  medicines: Array<{
+    id: string;
+    name: string;
+    genericName: string | null;
+    brandName: string | null;
+    category: string | null;
+    form: string | null;
+    strength: string | null;
+    unit: string | null;
+    totalQuantityOnHand: number;
+    currentSellingPrice: number;
+    currentBatchNumber: string | null;
+    nextExpiryDate: string | null;
+    isLowStock: boolean;
+  }>;
+};
+
+export type SalesOverviewResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  metrics: {
+    todaySalesAmount: number;
+    todaySalesCount: number;
+    averageTicket: number;
+  };
+  recentSales: Array<{
+    id: string;
+    saleNumber: string;
+    totalAmount: number;
+    paymentMethod: "CASH" | "CARD" | "MOBILE_MONEY" | "BANK_TRANSFER";
+    status: "COMPLETED" | "VOIDED";
+    soldAt: string;
+    soldBy: string;
+    itemCount: number;
+    items: Array<{
+      medicineName: string;
+      quantity: number;
+      unitPrice: number;
+      lineTotal: number;
+    }>;
+  }>;
+};
+
+export type CreateSaleResponse = {
+  id: string;
+  saleNumber: string;
+  totalAmount: number;
+  paymentMethod: "CASH" | "CARD" | "MOBILE_MONEY" | "BANK_TRANSFER";
+  soldAt: string;
+  items: Array<{
+    medicineId: string;
+    medicineName: string;
+    quantity: number;
+    batchNumber: string;
+    unitPrice: number;
+    lineTotal: number;
   }>;
 };
 

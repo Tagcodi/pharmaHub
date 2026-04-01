@@ -335,6 +335,116 @@ async function main() {
     );
     assert.ok(dashboardOverviewResponse.body.recentActivity.length >= 1);
 
+    console.log("13. Reading the live POS catalog");
+    const salesCatalogResponse = await requestJson<{
+      medicines: Array<{
+        id: string;
+        name: string;
+        totalQuantityOnHand: number;
+        currentSellingPrice: number;
+      }>;
+    }>(context.baseUrl, "/sales/catalog", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(salesCatalogResponse.status, 200);
+    assert.equal(salesCatalogResponse.body.medicines.length, 1);
+    assert.equal(salesCatalogResponse.body.medicines[0]?.name, "Paracetamol");
+    assert.equal(salesCatalogResponse.body.medicines[0]?.totalQuantityOnHand, 12);
+    assert.equal(salesCatalogResponse.body.medicines[0]?.currentSellingPrice, 15);
+
+    console.log("14. Completing a sale through the POS flow");
+    const createSaleResponse = await requestJson<{
+      saleNumber: string;
+      totalAmount: number;
+      paymentMethod: string;
+      items: Array<{
+        medicineName: string;
+        quantity: number;
+        batchNumber: string;
+      }>;
+    }>(context.baseUrl, "/sales", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        paymentMethod: "CASH",
+        items: [
+          {
+            medicineId: createMedicineResponse.body.id,
+            quantity: 5,
+          },
+        ],
+      }),
+    });
+
+    assert.equal(createSaleResponse.status, 201);
+    assert.match(createSaleResponse.body.saleNumber, /^MAIN-/);
+    assert.equal(createSaleResponse.body.totalAmount, 75);
+    assert.equal(createSaleResponse.body.paymentMethod, "CASH");
+    assert.equal(createSaleResponse.body.items[0]?.medicineName, "Paracetamol");
+    assert.equal(createSaleResponse.body.items[0]?.quantity, 5);
+    assert.equal(createSaleResponse.body.items[0]?.batchNumber, "B-2026-001");
+
+    console.log("15. Verifying inventory decreased after the sale");
+    const inventoryAfterSaleResponse = await requestJson<{
+      totals: {
+        totalUnitsOnHand: number;
+        totalStockValue: number;
+        lowStockCount: number;
+      };
+      medicines: Array<{
+        totalQuantityOnHand: number;
+        latestBatchNumber: string | null;
+      }>;
+    }>(context.baseUrl, "/inventory/summary", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(inventoryAfterSaleResponse.status, 200);
+    assert.equal(inventoryAfterSaleResponse.body.totals.totalUnitsOnHand, 7);
+    assert.equal(inventoryAfterSaleResponse.body.totals.totalStockValue, 105);
+    assert.equal(inventoryAfterSaleResponse.body.totals.lowStockCount, 1);
+    assert.equal(
+      inventoryAfterSaleResponse.body.medicines[0]?.totalQuantityOnHand,
+      7
+    );
+    assert.equal(
+      inventoryAfterSaleResponse.body.medicines[0]?.latestBatchNumber,
+      "B-2026-001"
+    );
+
+    console.log("16. Reading POS overview with the completed sale");
+    const salesOverviewResponse = await requestJson<{
+      metrics: {
+        todaySalesAmount: number;
+        todaySalesCount: number;
+        averageTicket: number;
+      };
+      recentSales: Array<{
+        saleNumber: string;
+        totalAmount: number;
+        itemCount: number;
+      }>;
+    }>(context.baseUrl, "/sales/overview", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(salesOverviewResponse.status, 200);
+    assert.equal(salesOverviewResponse.body.metrics.todaySalesAmount, 75);
+    assert.equal(salesOverviewResponse.body.metrics.todaySalesCount, 1);
+    assert.equal(salesOverviewResponse.body.metrics.averageTicket, 75);
+    assert.equal(salesOverviewResponse.body.recentSales.length, 1);
+    assert.equal(salesOverviewResponse.body.recentSales[0]?.totalAmount, 75);
+    assert.equal(salesOverviewResponse.body.recentSales[0]?.itemCount, 5);
+
     console.log("Auth foundation e2e checks passed.");
   } finally {
     await context.close();
