@@ -1009,7 +1009,82 @@ async function main() {
       "Cycle count completed"
     );
 
-    console.log("Cycle count e2e checks passed.");
+    console.log("34. Reading the alerts overview");
+    const alertsOverviewResponse = await requestJson<{
+      metrics: {
+        totalAlerts: number;
+        criticalAlerts: number;
+        warningAlerts: number;
+        lowStockCount: number;
+        expiringSoonCount: number;
+        expiredCount: number;
+        suspectedLossCount: number;
+        cycleCountShortageCount: number;
+        voidedSaleCount: number;
+      };
+      lowStockMedicines: Array<{
+        name: string;
+        totalQuantityOnHand: number;
+        status: string;
+      }>;
+      expiryBatches: Array<{
+        batchNumber: string;
+        quantityOnHand: number;
+        status: string;
+      }>;
+      inventorySignals: Array<{
+        type: string;
+        medicineName: string;
+      }>;
+      salesSignals: Array<{
+        saleNumber: string;
+        reason: string | null;
+      }>;
+    }>(context.baseUrl, "/alerts/overview", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(alertsOverviewResponse.status, 200);
+    assert.equal(alertsOverviewResponse.body.metrics.totalAlerts, 5);
+    assert.equal(alertsOverviewResponse.body.metrics.lowStockCount, 1);
+    assert.equal(alertsOverviewResponse.body.metrics.expiringSoonCount, 1);
+    assert.equal(alertsOverviewResponse.body.metrics.expiredCount, 0);
+    assert.equal(alertsOverviewResponse.body.metrics.suspectedLossCount, 1);
+    assert.equal(alertsOverviewResponse.body.metrics.cycleCountShortageCount, 1);
+    assert.equal(alertsOverviewResponse.body.metrics.voidedSaleCount, 1);
+    assert.equal(alertsOverviewResponse.body.lowStockMedicines[0]?.name, "Paracetamol");
+    assert.equal(
+      alertsOverviewResponse.body.lowStockMedicines[0]?.totalQuantityOnHand,
+      8
+    );
+    assert.equal(alertsOverviewResponse.body.lowStockMedicines[0]?.status, "WARNING");
+    assert.equal(alertsOverviewResponse.body.expiryBatches[0]?.batchNumber, "B-2026-001");
+    assert.equal(alertsOverviewResponse.body.expiryBatches[0]?.quantityOnHand, 8);
+    assert.equal(alertsOverviewResponse.body.expiryBatches[0]?.status, "WARNING");
+    assert.ok(
+      alertsOverviewResponse.body.inventorySignals.some(
+        (signal) =>
+          signal.type === "THEFT_SUSPECTED" && signal.medicineName === "Paracetamol"
+      )
+    );
+    assert.ok(
+      alertsOverviewResponse.body.inventorySignals.some(
+        (signal) =>
+          signal.type === "COUNT_SHORTAGE" && signal.medicineName === "Paracetamol"
+      )
+    );
+    assert.equal(
+      alertsOverviewResponse.body.salesSignals[0]?.saleNumber,
+      createSaleResponse.body.saleNumber
+    );
+    assert.equal(
+      alertsOverviewResponse.body.salesSignals[0]?.reason,
+      "Dispensing mistake"
+    );
+
+    console.log("Cycle count and alert center e2e checks passed.");
   } finally {
     await context.close();
   }

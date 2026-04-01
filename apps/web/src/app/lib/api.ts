@@ -310,6 +310,77 @@ export type CreateCycleCountResponse = {
   createdAt: string;
 };
 
+export type AlertsOverviewResponse = {
+  branch: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  metrics: {
+    totalAlerts: number;
+    criticalAlerts: number;
+    warningAlerts: number;
+    lowStockCount: number;
+    expiringSoonCount: number;
+    expiredCount: number;
+    suspectedLossCount: number;
+    cycleCountShortageCount: number;
+    voidedSaleCount: number;
+  };
+  lowStockMedicines: Array<{
+    id: string;
+    name: string;
+    genericName: string | null;
+    form: string | null;
+    strength: string | null;
+    unit: string | null;
+    totalQuantityOnHand: number;
+    activeBatchCount: number;
+    totalStockValue: number;
+    currentBatchNumber: string | null;
+    nextExpiryDate: string | null;
+    status: "CRITICAL" | "WARNING";
+  }>;
+  expiryBatches: Array<{
+    id: string;
+    medicineId: string;
+    medicineName: string;
+    genericName: string | null;
+    batchNumber: string;
+    quantityOnHand: number;
+    sellingPrice: number;
+    supplierName: string | null;
+    expiryDate: string;
+    receivedAt: string;
+    daysUntilExpiry: number;
+    status: "EXPIRED" | "CRITICAL" | "WARNING";
+  }>;
+  inventorySignals: Array<{
+    id: string;
+    type: "COUNT_SHORTAGE" | "THEFT_SUSPECTED" | "LOST";
+    severity: "CRITICAL" | "WARNING";
+    title: string;
+    description: string;
+    medicineName: string;
+    batchNumber: string;
+    quantityDelta: number;
+    actor: string;
+    createdAt: string;
+  }>;
+  salesSignals: Array<{
+    id: string;
+    type: "SALE_VOIDED";
+    severity: "WARNING";
+    title: string;
+    description: string;
+    saleNumber: string;
+    reason: string | null;
+    totalAmount: number | null;
+    actor: string;
+    createdAt: string;
+  }>;
+};
+
 export type AuditLogsResponse = {
   branch: {
     id: string;
