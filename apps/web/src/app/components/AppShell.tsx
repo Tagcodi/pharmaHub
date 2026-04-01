@@ -154,7 +154,10 @@ export function AppShell({ session, children }: AppShellProps) {
   const role = session.user.role;
 
   const primaryNav = PRIMARY_NAV.filter((item) => {
-    if (role === "CASHIER" && item.href === "/medicines") {
+    if (
+      role === "CASHIER" &&
+      (item.href === "/medicines" || item.href === "/alerts")
+    ) {
       return false;
     }
 
