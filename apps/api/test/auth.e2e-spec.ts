@@ -642,7 +642,87 @@ async function main() {
     assert.equal(auditLogsResponse.body.items[0]?.category, "Inventory");
     assert.equal(auditLogsResponse.body.items[0]?.title, "Stock loss recorded");
 
-    console.log("Inventory adjustment and audit e2e checks passed.");
+    console.log("23. Reading the owner reports summary");
+    const reportsSummaryResponse = await requestJson<{
+      range: {
+        days: number;
+      };
+      sales: {
+        totalSalesAmount: number;
+        completedSalesCount: number;
+        totalUnitsSold: number;
+        topMedicines: Array<{
+          name: string;
+          quantitySold: number;
+          revenue: number;
+        }>;
+      };
+      inventory: {
+        totalInventoryValue: number;
+        lowStockCount: number;
+      };
+      adjustments: {
+        totalAdjustments: number;
+        suspectedLossCount: number;
+        recentLossEvents: Array<{
+          medicineName: string;
+          quantityDelta: number;
+        }>;
+      };
+    }>(context.baseUrl, "/reports/summary?rangeDays=30", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    assert.equal(reportsSummaryResponse.status, 200);
+    assert.equal(reportsSummaryResponse.body.range.days, 30);
+    assert.equal(reportsSummaryResponse.body.sales.totalSalesAmount, 75);
+    assert.equal(reportsSummaryResponse.body.sales.completedSalesCount, 1);
+    assert.equal(reportsSummaryResponse.body.sales.totalUnitsSold, 5);
+    assert.equal(reportsSummaryResponse.body.sales.topMedicines[0]?.name, "Paracetamol");
+    assert.equal(reportsSummaryResponse.body.sales.topMedicines[0]?.quantitySold, 5);
+    assert.equal(reportsSummaryResponse.body.sales.topMedicines[0]?.revenue, 75);
+    assert.equal(reportsSummaryResponse.body.inventory.totalInventoryValue, 75);
+    assert.equal(reportsSummaryResponse.body.inventory.lowStockCount, 1);
+    assert.equal(reportsSummaryResponse.body.adjustments.totalAdjustments, 1);
+    assert.equal(reportsSummaryResponse.body.adjustments.suspectedLossCount, 1);
+    assert.equal(
+      reportsSummaryResponse.body.adjustments.recentLossEvents[0]?.medicineName,
+      "Paracetamol"
+    );
+    assert.equal(
+      reportsSummaryResponse.body.adjustments.recentLossEvents[0]?.quantityDelta,
+      -2
+    );
+
+    console.log("24. Exporting the reports CSV");
+    const csvExportResponse = await fetch(
+      new URL("/reports/export.csv?rangeDays=30", `${context.baseUrl}/`),
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    assert.equal(csvExportResponse.status, 200);
+    assert.match(
+      csvExportResponse.headers.get("content-type") ?? "",
+      /^text\/csv/
+    );
+    assert.match(
+      csvExportResponse.headers.get("content-disposition") ?? "",
+      /pharmahub-report-30d\.csv/
+    );
+
+    const csvText = await csvExportResponse.text();
+
+    assert.match(csvText, /PharmaHub Report/);
+    assert.match(csvText, /Paracetamol/);
+    assert.match(csvText, /THEFT_SUSPECTED/);
+
+    console.log("Reporting and export e2e checks passed.");
   } finally {
     await context.close();
   }

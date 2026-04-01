@@ -170,6 +170,10 @@ export function AppShell({ session, children }: AppShellProps) {
       return role !== "CASHIER";
     }
 
+    if (item.href === "/reports") {
+      return role !== "CASHIER";
+    }
+
     return true;
   });
 
